@@ -1,9 +1,8 @@
-streamlit>=1.28.0
-pandas>=1.5.3
-numpy>=1.24.3
-matplotlib>=3.7.1
-plotly>=5.15.0
-pillow>=9.5.0
-streamlit-option-menu>=0.3.6
-streamlit-autorefresh>=1.0.1
-streamlit-confetti==0.1.0
+streamlit==1.28.0
+pandas==1.5.3
+numpy==1.24.3
+matplotlib==3.7.1
+plotly==5.15.0
+pillow==9.5.0
+streamlit-option-menu==0.3.6
+streamlit-autorefresh==1.0.1
