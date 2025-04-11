@@ -17,7 +17,7 @@ A fully interactive Texas Hold'em poker game built with Streamlit and modern web
 
 ```bash
 # Clone this repository
-git clone https://github.com/yourusername/poker-game.git
+git clone https://github.com/varunbudati/PokerGame.git
 
 # Navigate to the project directory
 cd poker-game
