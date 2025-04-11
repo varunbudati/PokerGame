@@ -1,0 +1,369 @@
+/* Main Poker Game Styling */
+
+/* Import custom fonts */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap');
+
+/* Base styling */
+:root {
+  /* Dark Theme Variables */
+  --dark-bg: #1A1A2E;
+  --dark-card-bg: #16213E;
+  --dark-accent: #0F3460;
+  --dark-highlight: #533483;
+  --dark-text: #E6E6E6;
+  --dark-secondary-text: #AEAEAE;
+  
+  /* Light Theme Variables */
+  --light-bg: #F5F5F5;
+  --light-card-bg: #FFFFFF;
+  --light-accent: #4DA167;
+  --light-highlight: #805A46;
+  --light-text: #333333;
+  --light-secondary-text: #555555;
+  
+  /* Common Variables */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Card animations and effects */
+.playing-card {
+  transition: all 0.3s ease;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin: 0 5px;
+}
+
+.playing-card:hover {
+  transform: translateY(-10px) rotate(3deg);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.card-back {
+  background-image: linear-gradient(45deg, #1e40af, #1e3a8a);
+  background-size: 10px 10px;
+  background-repeat: repeat;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-back:after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60%;
+  height: 80%;
+  background: rgba(255, 255, 255, 0.1);
+  transform: translate(-50%, -50%);
+  border-radius: 5px;
+}
+
+/* Poker table styling */
+.poker-table {
+  border-radius: 150px;
+  padding: 30px;
+  position: relative;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+  margin: 20px auto;
+  max-width: 1000px;
+}
+
+/* Dark theme poker table */
+.dark .poker-table {
+  background: linear-gradient(#0F3460, #16213E);
+  border: 5px solid #533483;
+}
+
+/* Light theme poker table */
+.light .poker-table {
+  background: linear-gradient(#4DA167, #2E6E4C);
+  border: 5px solid #805A46;
+}
+
+/* Player and opponent areas */
+.player-area, .opponent-area {
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  transition: all 0.2s ease;
+}
+
+/* Dark theme player area */
+.dark .player-area {
+  background-color: rgba(15, 52, 96, 0.7);
+  border: 1px solid #533483;
+}
+
+.dark .opponent-area {
+  background-color: rgba(83, 52, 131, 0.7);
+  border: 1px solid #0F3460;
+}
+
+/* Light theme player area */
+.light .player-area {
+  background-color: rgba(77, 161, 103, 0.7);
+  border: 1px solid #805A46;
+}
+
+.light .opponent-area {
+  background-color: rgba(128, 90, 70, 0.7);
+  border: 1px solid #4DA167;
+}
+
+/* Active player highlight */
+.active-player {
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+  transform: scale(1.03);
+}
+
+/* Poker chips styling */
+.poker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.chip {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 5px dashed white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.chip:hover {
+  transform: scale(1.1) translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Chip colors for both themes */
+.dark .chip.red { background: linear-gradient(#E94560, #c91e3a); color: white; }
+.dark .chip.blue { background: linear-gradient(#0F3460, #0a1e38); color: white; }
+.dark .chip.green { background: linear-gradient(#16a34a, #15803d); color: white; }
+.dark .chip.black { background: linear-gradient(#27272a, #18181b); color: white; }
+.dark .chip.gold { background: linear-gradient(#fbbf24, #d97706); color: black; }
+
+.light .chip.red { background: linear-gradient(#ef4444, #dc2626); color: white; }
+.light .chip.blue { background: linear-gradient(#3b82f6, #2563eb); color: white; }
+.light .chip.green { background: linear-gradient(#22c55e, #16a34a); color: white; }
+.light .chip.black { background: linear-gradient(#3f3f46, #27272a); color: white; }
+.light .chip.gold { background: linear-gradient(#fcd34d, #f59e0b); color: black; }
+
+/* Chip stacks */
+.chip-stack {
+  position: relative;
+  width: 60px;
+  height: 70px;
+}
+
+.chip-stack .chip {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.chip-stack .chip:nth-child(2) {
+  top: 5px;
+}
+
+.chip-stack .chip:nth-child(3) {
+  top: 10px;
+}
+
+/* Action buttons */
+.action-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+
+/* Dark theme buttons */
+.dark .action-button.fold {
+  background-color: #ef4444;
+  color: white;
+}
+
+.dark .action-button.check {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.dark .action-button.call {
+  background-color: #8b5cf6;
+  color: white;
+}
+
+.dark .action-button.raise {
+  background-color: #10b981;
+  color: white;
+}
+
+.dark .action-button.all-in {
+  background-color: #f59e0b;
+  color: white;
+}
+
+/* Light theme buttons */
+.light .action-button.fold {
+  background-color: #dc2626;
+  color: white;
+}
+
+.light .action-button.check {
+  background-color: #2563eb;
+  color: white;
+}
+
+.light .action-button.call {
+  background-color: #7c3aed;
+  color: white;
+}
+
+.light .action-button.raise {
+  background-color: #059669;
+  color: white;
+}
+
+.light .action-button.all-in {
+  background-color: #d97706;
+  color: white;
+}
+
+.action-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(110%);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.action-button:active {
+  transform: translateY(1px);
+  filter: brightness(90%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Animations */
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translate(-50px, -50px) rotate(-20deg);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+}
+
+.deal-animation {
+  animation: deal 0.5s ease-out forwards;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 215, 0, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+}
+
+.win-animation {
+  animation: pulse 1s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .poker-table {
+    border-radius: 80px;
+    padding: 15px;
+  }
+  
+  .chip {
+    width: 50px;
+    height: 50px;
+    font-size: 14px;
+  }
+  
+  .playing-card {
+    width: 60px;
+  }
+}
+
+/* Stats and charts styling */
+.stats-card {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(5px);
+  border: 1px solid;
+}
+
+.dark .stats-card {
+  border-color: var(--dark-highlight);
+}
+
+.light .stats-card {
+  border-color: var(--light-highlight);
+}
+
+/* Custom metric styling */
+.metric-container {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 15px;
+  text-align: center;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 10px 0;
+}
+
+.metric-label {
+  font-size: 16px;
+  color: var(--dark-secondary-text);
+}
+
+.light .metric-label {
+  color: var(--light-secondary-text);
+}
+
+/* Hand ranking display */
+.hand-rank {
+  font-family: 'Roboto Mono', monospace;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-weight: 500;
+  display: inline-block;
+}
+
+.dark .hand-rank {
+  background-color: #533483;
+}
+
+.light .hand-rank {
+  background-color: #4DA167;
+  color: white;
+}
