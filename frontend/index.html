@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Poker Game</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="dark-theme">
+    <header>
+        <h1>Texas Hold'em Poker</h1>
+        <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark theme">
+            <i class="fas fa-sun light-icon"></i>
+            <i class="fas fa-moon dark-icon"></i>
+        </button>
+    </header>
+
+    <main>
+        <div class="poker-table">
+            <!-- Game information display -->
+            <div class="game-info">
+                <div id="pot-display" class="pot-display">Pot: $0</div>
+                <div id="round-status" class="round-status">Pre-Flop</div>
+                <div id="game-message" class="game-message"></div>
+            </div>
+            
+            <!-- Opponent areas -->
+            <div class="opponents-container">
+                <div id="opponent-1" class="opponent-area">
+                    <div class="opponent-info">
+                        <span class="opponent-name">Opponent 1</span>
+                        <span class="opponent-chips">$1000</span>
+                    </div>
+                    <div class="opponent-cards"></div>
+                    <div class="opponent-action"></div>
+                </div>
+                
+                <div id="opponent-2" class="opponent-area">
+                    <div class="opponent-info">
+                        <span class="opponent-name">Opponent 2</span>
+                        <span class="opponent-chips">$1000</span>
+                    </div>
+                    <div class="opponent-cards"></div>
+                    <div class="opponent-action"></div>
+                </div>
+                
+                <div id="opponent-3" class="opponent-area">
+                    <div class="opponent-info">
+                        <span class="opponent-name">Opponent 3</span>
+                        <span class="opponent-chips">$1000</span>
+                    </div>
+                    <div class="opponent-cards"></div>
+                    <div class="opponent-action"></div>
+                </div>
+            </div>
+            
+            <!-- Community cards section -->
+            <div class="community-cards-section">
+                <h3 class="section-title">Community Cards</h3>
+                <div id="community-cards" class="community-cards"></div>
+            </div>
+            
+            <!-- Player area -->
+            <div id="player-area" class="player-area">
+                <div class="player-info">
+                    <span class="player-name">You</span>
+                    <span id="player-chips" class="player-chips">$1000</span>
+                </div>
+                
+                <div id="player-cards" class="player-cards"></div>
+                
+                <div id="player-hand-rank" class="hand-rank"></div>
+                
+                <!-- Action buttons -->
+                <div class="action-buttons">
+                    <button id="fold-btn" class="action-button fold">Fold</button>
+                    <button id="check-btn" class="action-button check">Check</button>
+                    <button id="call-btn" class="action-button call">Call $0</button>
+                    
+                    <div class="raise-controls">
+                        <input id="raise-amount" type="range" min="50" max="1000" step="50" value="100">
+                        <span class="raise-amount-display">$<span id="raise-value">100</span></span>
+                        <button id="raise-btn" class="action-button raise">Raise</button>
+                    </div>
+                    
+                    <button id="all-in-btn" class="action-button all-in">All In</button>
+                </div>
+                
+                <button id="next-hand-btn" class="next-hand-button" style="display: none;">Next Hand</button>
+            </div>
+        </div>
+    </main>
+    
+    <aside class="game-help">
+        <h3>Hand Rankings</h3>
+        <ol class="hand-rankings-list">
+            <li><strong>Royal Flush</strong>: A, K, Q, J, 10 of the same suit</li>
+            <li><strong>Straight Flush</strong>: 5 cards in sequence, same suit</li>
+            <li><strong>Four of a Kind</strong>: 4 cards of the same rank</li>
+            <li><strong>Full House</strong>: 3 of a kind + a pair</li>
+            <li><strong>Flush</strong>: 5 cards of the same suit</li>
+            <li><strong>Straight</strong>: 5 cards in sequence</li>
+            <li><strong>Three of a Kind</strong>: 3 cards of the same rank</li>
+            <li><strong>Two Pair</strong>: 2 pairs of different ranks</li>
+            <li><strong>Pair</strong>: 2 cards of the same rank</li>
+            <li><strong>High Card</strong>: Highest card plays</li>
+        </ol>
+    </aside>
+
+    <footer>
+        <p>© 2025 Interactive Poker Game | <a href="#" id="rules-toggle">Game Rules</a></p>
+    </footer>
+
+    <div id="rules-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Texas Hold'em Rules</h2>
+            <div class="rules-content">
+                <h3>Game Flow</h3>
+                <p>Each player is dealt two private cards. Then five community cards are dealt face up in three stages:</p>
+                <ol>
+                    <li><strong>The Flop</strong>: First three community cards</li>
+                    <li><strong>The Turn</strong>: Fourth community card</li>
+                    <li><strong>The River</strong>: Fifth and final community card</li>
+                </ol>
+                
+                <h3>Betting Rounds</h3>
+                <p>There are four betting rounds: pre-flop, flop, turn and river. In each round, you can:</p>
+                <ul>
+                    <li><strong>Check</strong>: Pass the action to the next player (only if no bet has been made)</li>
+                    <li><strong>Call</strong>: Match the current bet amount</li>
+                    <li><strong>Raise</strong>: Increase the current bet</li>
+                    <li><strong>Fold</strong>: Discard your hand and exit the round</li>
+                </ul>
+                
+                <h3>Winning</h3>
+                <p>The player with the best five-card poker hand wins the pot. You create your hand using any combination of your two private cards and the five community cards.</p>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/poker.js"></script>
+    <script>
+        // Show/hide the rules modal
+        document.getElementById('rules-toggle').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('rules-modal').style.display = 'block';
+        });
+        
+        document.querySelector('.close-modal').addEventListener('click', function() {
+            document.getElementById('rules-modal').style.display = 'none';
+        });
+        
+        window.addEventListener('click', function(e) {
+            if (e.target == document.getElementById('rules-modal')) {
+                document.getElementById('rules-modal').style.display = 'none';
+            }
+        });
+        
+        // Live update of raise amount display
+        document.getElementById('raise-amount').addEventListener('input', function() {
+            document.getElementById('raise-value').textContent = this.value;
+        });
+    </script>
+</body>
+</html>

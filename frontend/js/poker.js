@@ -1,384 +1,573 @@
 /**
  * Interactive Poker Game - Frontend JavaScript
- * Enhances the UI with dynamic effects, animations, and interactivity
+ * ===========================================
+ * Handles all frontend game logic, animations, and interactions
  */
 
-// Wait for the document to be ready
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize game UI components
-    initializePokerUI();
+    // Theme setting
+    const themeToggle = document.getElementById('theme-toggle');
+    const body = document.body;
     
-    // Add event listeners for chip selections
-    setupChipSelection();
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('pokerTheme') || 'dark';
+    body.classList.add(`${savedTheme}-theme`);
     
-    // Setup sound effects if enabled
-    setupSoundEffects();
-    
-    // Add animation observers
-    setupAnimationObservers();
-});
-
-/**
- * Initialize the poker game UI components
- */
-function initializePokerUI() {
-    // Apply theme based on session state
-    applyTheme();
-    
-    // Initialize tooltips
-    addTooltips();
-    
-    // Make cards interactive
-    makeCardsInteractive();
-    
-    // Responsive adjustments
-    handleResponsiveLayout();
-    
-    // Add visual feedback for actions
-    setupActionFeedback();
-}
-
-/**
- * Apply the current theme to the entire UI
- */
-function applyTheme() {
-    // Get current theme from streamlit state
-    const theme = window.theme || 'dark';
-    
-    // Apply body class
-    document.body.classList.remove('dark', 'light');
-    document.body.classList.add(theme);
-    
-    // Update theme-specific elements
-    const themeElements = document.querySelectorAll('[data-theme]');
-    themeElements.forEach(el => {
-        const darkValue = el.dataset.themeDark || '';
-        const lightValue = el.dataset.themeLight || '';
-        
-        if (theme === 'dark') {
-            el.setAttribute(el.dataset.theme, darkValue);
-        } else {
-            el.setAttribute(el.dataset.theme, lightValue);
-        }
-    });
-}
-
-/**
- * Listen for theme changes from Streamlit
- */
-window.addEventListener('message', function(event) {
-    const data = event.data;
-    
-    // If the message contains theme information
-    if (data.theme) {
-        window.theme = data.theme;
-        applyTheme();
-    }
-});
-
-/**
- * Add tooltips to UI elements
- */
-function addTooltips() {
-    const tooltipElements = document.querySelectorAll('[data-tooltip]');
-    
-    tooltipElements.forEach(el => {
-        // Create tooltip element
-        const tooltip = document.createElement('div');
-        tooltip.className = 'tooltip';
-        tooltip.textContent = el.dataset.tooltip;
-        
-        // Show tooltip on hover
-        el.addEventListener('mouseenter', () => {
-            document.body.appendChild(tooltip);
-            const rect = el.getBoundingClientRect();
-            tooltip.style.left = `${rect.left + rect.width / 2 - tooltip.offsetWidth / 2}px`;
-            tooltip.style.top = `${rect.top - tooltip.offsetHeight - 10}px`;
-            tooltip.classList.add('visible');
-        });
-        
-        // Hide tooltip when mouse leaves
-        el.addEventListener('mouseleave', () => {
-            tooltip.classList.remove('visible');
-            setTimeout(() => {
-                if (tooltip.parentNode) {
-                    tooltip.parentNode.removeChild(tooltip);
-                }
-            }, 300);
-        });
-    });
-}
-
-/**
- * Make playing cards interactive with hover effects
- */
-function makeCardsInteractive() {
-    const cards = document.querySelectorAll('.playing-card');
-    
-    cards.forEach(card => {
-        // Add hover effect
-        card.addEventListener('mouseenter', () => {
-            card.classList.add('card-hover');
-        });
-        
-        card.addEventListener('mouseleave', () => {
-            card.classList.remove('card-hover');
-        });
-        
-        // Add click sound if enabled
-        card.addEventListener('click', () => {
-            playSound('card');
-        });
-    });
-}
-
-/**
- * Setup chip selection interaction
- */
-function setupChipSelection() {
-    const chips = document.querySelectorAll('.chip');
-    
-    chips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            // Remove selection from other chips
-            chips.forEach(c => c.classList.remove('selected'));
-            
-            // Select this chip
-            chip.classList.add('selected');
-            
-            // Play sound
-            playSound('chip');
-            
-            // Update raise slider value if applicable
-            const chipValue = parseInt(chip.dataset.value, 10);
-            const raiseSlider = document.getElementById('raise-slider');
-            if (raiseSlider) {
-                const minRaise = parseInt(raiseSlider.getAttribute('min'), 10);
-                const maxRaise = parseInt(raiseSlider.getAttribute('max'), 10);
-                
-                // Calculate new value based on chip
-                let newValue = minRaise + chipValue;
-                
-                // Ensure it's within bounds
-                newValue = Math.min(Math.max(newValue, minRaise), maxRaise);
-                
-                // Update slider
-                raiseSlider.value = newValue;
-                
-                // Trigger input event to update Streamlit
-                const event = new Event('input', { bubbles: true });
-                raiseSlider.dispatchEvent(event);
-                
-                // Update displayed value
-                const valueDisplay = document.getElementById('raise-value');
-                if (valueDisplay) {
-                    valueDisplay.textContent = `$${newValue}`;
-                }
+    if (themeToggle) {
+        themeToggle.addEventListener('click', function() {
+            if (body.classList.contains('dark-theme')) {
+                body.classList.remove('dark-theme');
+                body.classList.add('light-theme');
+                localStorage.setItem('pokerTheme', 'light');
+            } else {
+                body.classList.remove('light-theme');
+                body.classList.add('dark-theme');
+                localStorage.setItem('pokerTheme', 'dark');
             }
         });
-    });
-}
-
-/**
- * Setup sound effects system
- */
-function setupSoundEffects() {
-    // Only initialize if sounds are enabled
-    const soundEnabled = window.soundEnabled !== false;
+    }
     
-    if (!soundEnabled) return;
-    
-    // Preload sound effects
-    window.sounds = {
-        card: new Audio('frontend/audio/card_slide.mp3'),
-        chip: new Audio('frontend/audio/chip_stack.mp3'),
-        win: new Audio('frontend/audio/win_sound.mp3'),
-        lose: new Audio('frontend/audio/lose_sound.mp3'),
-        deal: new Audio('frontend/audio/card_shuffle.mp3'),
-        button: new Audio('frontend/audio/button_click.mp3')
+    // Card management
+    const cardSuits = {
+        'h': '♥',
+        'd': '♦',
+        'c': '♣',
+        's': '♠'
     };
     
-    // Adjust volume
-    Object.values(window.sounds).forEach(sound => {
-        sound.volume = 0.5;
-    });
-}
-
-/**
- * Play a sound effect
- * @param {string} soundName - Name of the sound to play
- */
-function playSound(soundName) {
-    if (!window.sounds || window.soundEnabled === false) return;
-    
-    const sound = window.sounds[soundName];
-    if (sound) {
-        sound.currentTime = 0;
-        sound.play().catch(e => console.error("Error playing sound:", e));
+    // Create and render a card
+    function createCard(cardCode, faceUp = false) {
+        const card = document.createElement('div');
+        card.className = 'card' + (faceUp ? ' flipped' : '');
+        
+        const cardInner = document.createElement('div');
+        cardInner.className = 'card-inner';
+        
+        const cardFront = document.createElement('div');
+        cardFront.className = 'card-front';
+        
+        const cardBack = document.createElement('div');
+        cardBack.className = 'card-back';
+        
+        // Only add card content if we have a valid card code
+        if (cardCode) {
+            const rank = cardCode.charAt(0);
+            const suit = cardCode.charAt(1);
+            
+            const isRed = (suit === 'h' || suit === 'd');
+            const suitSymbol = cardSuits[suit] || '';
+            
+            const topValue = document.createElement('div');
+            topValue.className = `card-value ${isRed ? 'red' : 'black'}`;
+            topValue.textContent = rank;
+            
+            const centerSuit = document.createElement('div');
+            centerSuit.className = `card-suit ${isRed ? 'red' : 'black'}`;
+            centerSuit.innerHTML = suitSymbol;
+            
+            const bottomValue = document.createElement('div');
+            bottomValue.className = `card-value ${isRed ? 'red' : 'black'}`;
+            bottomValue.textContent = rank;
+            bottomValue.style.transform = 'rotate(180deg)';
+            
+            cardFront.appendChild(topValue);
+            cardFront.appendChild(centerSuit);
+            cardFront.appendChild(bottomValue);
+        }
+        
+        cardInner.appendChild(cardFront);
+        cardInner.appendChild(cardBack);
+        card.appendChild(cardInner);
+        
+        card.dataset.cardCode = cardCode || '';
+        
+        return card;
     }
-}
-
-/**
- * Setup animation observers to trigger animations when elements enter viewport
- */
-function setupAnimationObservers() {
-    if (!window.IntersectionObserver) return;
     
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('animated');
-                observer.unobserve(entry.target);
+    // Flip a card
+    function flipCard(cardElement, faceUp = true) {
+        if (faceUp) {
+            cardElement.classList.add('flipped');
+        } else {
+            cardElement.classList.remove('flipped');
+        }
+    }
+    
+    // Animation for dealing cards
+    function dealCardAnimation(cardElement, targetElement, delay = 0) {
+        cardElement.style.opacity = '0';
+        targetElement.appendChild(cardElement);
+        
+        setTimeout(() => {
+            cardElement.classList.add('deal-animation');
+            cardElement.style.opacity = '1';
+        }, delay);
+        
+        return new Promise(resolve => {
+            setTimeout(() => {
+                cardElement.classList.remove('deal-animation');
+                resolve();
+            }, delay + 500); // Animation duration
+        });
+    }
+    
+    // Chip management
+    function createChip(value, color) {
+        const chip = document.createElement('div');
+        chip.className = `chip ${color}`;
+        chip.textContent = value;
+        chip.dataset.value = value;
+        
+        return chip;
+    }
+    
+    // Create chip stack for betting
+    function createChipStack(amount) {
+        const chipStack = document.createElement('div');
+        chipStack.className = 'chip-stack';
+        
+        // Determine chips to represent the amount
+        let remainingAmount = amount;
+        const chipValues = [
+            {value: 5000, color: 'black'},
+            {value: 1000, color: 'gold'},
+            {value: 500, color: 'blue'},
+            {value: 100, color: 'green'},
+            {value: 25, color: 'red'}
+        ];
+        
+        let displayedChips = 0;
+        
+        for (const chipType of chipValues) {
+            if (remainingAmount >= chipType.value && displayedChips < 5) {
+                const chip = createChip(chipType.value, chipType.color);
+                chipStack.appendChild(chip);
+                remainingAmount -= chipType.value;
+                displayedChips++;
+                
+                // Don't show too many chips
+                if (displayedChips >= 5) {
+                    break;
+                }
+            }
+        }
+        
+        // Add a chip counter if there's more
+        if (remainingAmount > 0 || amount > 5000) {
+            const amountDisplay = document.createElement('div');
+            amountDisplay.className = 'chip-amount';
+            amountDisplay.textContent = `$${amount}`;
+            chipStack.appendChild(amountDisplay);
+        }
+        
+        return chipStack;
+    }
+    
+    // Poker hand rank display
+    function getHandRankDescription(handRank) {
+        switch(handRank) {
+            case 'high_card':
+                return 'High Card';
+            case 'pair':
+                return 'Pair';
+            case 'two_pair':
+                return 'Two Pair';
+            case 'three_of_a_kind':
+                return 'Three of a Kind';
+            case 'straight':
+                return 'Straight';
+            case 'flush':
+                return 'Flush';
+            case 'full_house':
+                return 'Full House';
+            case 'four_of_a_kind':
+                return 'Four of a Kind';
+            case 'straight_flush':
+                return 'Straight Flush';
+            case 'royal_flush':
+                return 'Royal Flush';
+            default:
+                return '';
+        }
+    }
+    
+    // Display hand rank
+    function updateHandRank(handRankElement, rank) {
+        if (handRankElement) {
+            handRankElement.textContent = getHandRankDescription(rank);
+            
+            // Clear any existing classes
+            handRankElement.className = 'hand-rank';
+            
+            // Add class based on hand strength
+            const rankClasses = {
+                'high_card': 'rank-high-card',
+                'pair': 'rank-pair',
+                'two_pair': 'rank-two-pair',
+                'three_of_a_kind': 'rank-three-kind',
+                'straight': 'rank-straight',
+                'flush': 'rank-flush',
+                'full_house': 'rank-full-house',
+                'four_of_a_kind': 'rank-four-kind',
+                'straight_flush': 'rank-straight-flush',
+                'royal_flush': 'rank-royal-flush'
+            };
+            
+            if (rankClasses[rank]) {
+                handRankElement.classList.add(rankClasses[rank]);
+            }
+        }
+    }
+    
+    // Action button controls
+    function setupActionButtons(gameState) {
+        const foldBtn = document.getElementById('fold-btn');
+        const checkBtn = document.getElementById('check-btn');
+        const callBtn = document.getElementById('call-btn');
+        const raiseBtn = document.getElementById('raise-btn');
+        const allInBtn = document.getElementById('all-in-btn');
+        const raiseInput = document.getElementById('raise-amount');
+        
+        // Only enable buttons when it's player's turn
+        if (gameState.currentPlayer === 'player') {
+            // Enable all buttons first
+            [foldBtn, checkBtn, callBtn, raiseBtn, allInBtn].forEach(btn => {
+                if (btn) btn.disabled = false;
+            });
+            
+            // Disable check if there's a bet to call
+            if (checkBtn && gameState.canCheck === false) {
+                checkBtn.disabled = true;
+            }
+            
+            // Update call button text with amount
+            if (callBtn) {
+                callBtn.textContent = `Call $${gameState.callAmount}`;
+                // Disable if can't call
+                callBtn.disabled = gameState.callAmount <= 0;
+            }
+            
+            // Set min/max for raise input
+            if (raiseInput) {
+                raiseInput.min = gameState.minRaise;
+                raiseInput.max = gameState.playerChips;
+                raiseInput.value = gameState.minRaise;
+            }
+        } else {
+            // Disable all buttons when not player's turn
+            [foldBtn, checkBtn, callBtn, raiseBtn, allInBtn].forEach(btn => {
+                if (btn) btn.disabled = true;
+            });
+        }
+    }
+    
+    // Server communication for game state
+    function fetchGameState() {
+        return fetch('/api/game/state')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch game state');
+                }
+                return response.json();
+            })
+            .catch(error => {
+                console.error('Error fetching game state:', error);
+                return null;
+            });
+    }
+    
+    // Take player action
+    function takeAction(action, amount = 0) {
+        const data = { action, amount };
+        
+        return fetch('/api/game/action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to perform action');
+            }
+            return response.json();
+        })
+        .catch(error => {
+            console.error('Error taking action:', error);
+            return null;
+        });
+    }
+    
+    // Update the UI based on game state
+    function updateUI(gameState) {
+        if (!gameState) return;
+        
+        // Update pot
+        const potElement = document.getElementById('pot-display');
+        if (potElement) {
+            potElement.textContent = `Pot: $${gameState.pot}`;
+        }
+        
+        // Update player chips
+        const playerChipsElement = document.getElementById('player-chips');
+        if (playerChipsElement) {
+            playerChipsElement.textContent = `$${gameState.playerChips}`;
+        }
+        
+        // Update player cards
+        const playerCardsElement = document.getElementById('player-cards');
+        if (playerCardsElement && gameState.playerCards) {
+            playerCardsElement.innerHTML = '';
+            gameState.playerCards.forEach(cardCode => {
+                const card = createCard(cardCode, true); // Player's cards are face up
+                playerCardsElement.appendChild(card);
+            });
+        }
+        
+        // Update community cards
+        const communityCardsElement = document.getElementById('community-cards');
+        if (communityCardsElement && gameState.communityCards) {
+            communityCardsElement.innerHTML = '';
+            gameState.communityCards.forEach(cardCode => {
+                const card = createCard(cardCode, true); // Community cards are face up
+                communityCardsElement.appendChild(card);
+            });
+        }
+        
+        // Update opponents
+        gameState.opponents.forEach((opponent, index) => {
+            const opponentElement = document.getElementById(`opponent-${index + 1}`);
+            if (opponentElement) {
+                // Update opponent name and chips
+                const nameElement = opponentElement.querySelector('.opponent-name');
+                if (nameElement) {
+                    nameElement.textContent = opponent.name;
+                }
+                
+                const chipsElement = opponentElement.querySelector('.opponent-chips');
+                if (chipsElement) {
+                    chipsElement.textContent = `$${opponent.chips}`;
+                }
+                
+                // Update opponent cards
+                const cardsElement = opponentElement.querySelector('.opponent-cards');
+                if (cardsElement) {
+                    cardsElement.innerHTML = '';
+                    opponent.cards.forEach(cardCode => {
+                        // Only show face up if revealed
+                        const card = createCard(cardCode, opponent.cardsRevealed);
+                        cardsElement.appendChild(card);
+                    });
+                }
+                
+                // Show opponent's action
+                const actionElement = opponentElement.querySelector('.opponent-action');
+                if (actionElement) {
+                    actionElement.textContent = opponent.lastAction || '';
+                }
+                
+                // Highlight active opponent
+                opponentElement.classList.toggle('active-player', opponent.isActive);
             }
         });
-    }, {
-        root: null,
-        threshold: 0.1,
-        rootMargin: '0px'
-    });
-    
-    // Observe elements with animate class
-    document.querySelectorAll('.animate-on-view').forEach(el => {
-        observer.observe(el);
-    });
-}
-
-/**
- * Setup responsive layout adjustments
- */
-function handleResponsiveLayout() {
-    // Initial check
-    adjustLayout();
-    
-    // Listen for window resize
-    window.addEventListener('resize', adjustLayout);
-}
-
-/**
- * Adjust layout based on window size
- */
-function adjustLayout() {
-    const isMobile = window.innerWidth < 768;
-    
-    if (isMobile) {
-        document.body.classList.add('mobile-view');
-    } else {
-        document.body.classList.remove('mobile-view');
+        
+        // Highlight active player
+        const playerAreaElement = document.getElementById('player-area');
+        if (playerAreaElement) {
+            playerAreaElement.classList.toggle('active-player', gameState.currentPlayer === 'player');
+        }
+        
+        // Update player's hand rank if available
+        if (gameState.playerHandRank) {
+            const handRankElement = document.getElementById('player-hand-rank');
+            if (handRankElement) {
+                updateHandRank(handRankElement, gameState.playerHandRank);
+            }
+        }
+        
+        // Update action buttons based on game state
+        setupActionButtons(gameState);
+        
+        // Update betting round status
+        const roundStatusElement = document.getElementById('round-status');
+        if (roundStatusElement) {
+            roundStatusElement.textContent = gameState.bettingRound || '';
+        }
+        
+        // Display game messages
+        if (gameState.message) {
+            showGameMessage(gameState.message);
+        }
+        
+        // Handle end of hand
+        if (gameState.handComplete) {
+            handleHandComplete(gameState);
+        }
     }
     
-    // Adjust card sizes
-    const cards = document.querySelectorAll('.playing-card');
-    const cardSize = isMobile ? '60px' : '90px';
-    cards.forEach(card => {
-        card.style.width = cardSize;
-    });
-    
-    // Adjust chip sizes
-    const chips = document.querySelectorAll('.chip');
-    const chipSize = isMobile ? '50px' : '60px';
-    chips.forEach(chip => {
-        chip.style.width = chipSize;
-        chip.style.height = chipSize;
-    });
-}
-
-/**
- * Setup visual feedback for poker actions
- */
-function setupActionFeedback() {
-    // Action buttons click effects
-    const actionButtons = document.querySelectorAll('.action-button');
-    
-    actionButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            // Add click class
-            button.classList.add('clicked');
+    // Display temporary game messages
+    function showGameMessage(message) {
+        const messageElement = document.getElementById('game-message');
+        if (messageElement) {
+            messageElement.textContent = message;
+            messageElement.style.opacity = '1';
             
-            // Play button sound
-            playSound('button');
-            
-            // Remove class after animation
+            // Hide after a few seconds
             setTimeout(() => {
-                button.classList.remove('clicked');
-            }, 300);
-        });
-    });
-    
-    // Handle win/lose animations
-    const winElements = document.querySelectorAll('.win-animation');
-    if (winElements.length > 0) {
-        playSound('win');
-    }
-    
-    const loseElements = document.querySelectorAll('.lose-animation');
-    if (loseElements.length > 0) {
-        playSound('lose');
-    }
-}
-
-/**
- * Update game stats visualizations
- * @param {Object} stats - Game statistics data
- */
-function updateStats(stats) {
-    if (!stats) return;
-    
-    // Update bankroll chart
-    if (stats.bankrollHistory && window.Plotly) {
-        const chartElement = document.getElementById('bankroll-chart');
-        if (chartElement) {
-            const data = [{
-                x: stats.bankrollHistory.hands,
-                y: stats.bankrollHistory.values,
-                type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: document.body.classList.contains('dark') ? '#533483' : '#4DA167' }
-            }];
-            
-            const layout = {
-                title: 'Bankroll History',
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                font: {
-                    color: document.body.classList.contains('dark') ? '#E6E6E6' : '#333333'
-                },
-                margin: { t: 40, r: 30, b: 40, l: 50 }
-            };
-            
-            Plotly.newPlot(chartElement, data, layout);
+                messageElement.style.opacity = '0';
+            }, 3000);
         }
     }
     
-    // Update win rate gauge
-    if (stats.winRate !== undefined && window.Plotly) {
-        const gaugeElement = document.getElementById('win-rate-gauge');
-        if (gaugeElement) {
-            const data = [{
-                type: 'indicator',
-                mode: 'gauge+number',
-                value: stats.winRate,
-                title: { text: 'Win Rate %' },
-                gauge: {
-                    axis: { range: [0, 100] },
-                    bar: { color: document.body.classList.contains('dark') ? '#533483' : '#4DA167' },
-                    bgcolor: 'rgba(255, 255, 255, 0.1)',
-                    borderwidth: 2,
-                    bordercolor: document.body.classList.contains('dark') ? '#0F3460' : '#805A46'
+    // Handle end of hand
+    function handleHandComplete(gameState) {
+        // Reveal all cards
+        gameState.opponents.forEach((opponent, index) => {
+            const opponentElement = document.getElementById(`opponent-${index + 1}`);
+            if (opponentElement) {
+                const cardsElement = opponentElement.querySelector('.opponent-cards');
+                if (cardsElement) {
+                    const cards = cardsElement.querySelectorAll('.card');
+                    cards.forEach(card => flipCard(card, true));
                 }
-            }];
+            }
+        });
+        
+        // Highlight winner
+        if (gameState.winner) {
+            const winnerElement = document.getElementById(
+                gameState.winner.isPlayer ? 'player-area' : `opponent-${gameState.winner.index}`
+            );
             
-            const layout = {
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                font: {
-                    color: document.body.classList.contains('dark') ? '#E6E6E6' : '#333333'
-                },
-                margin: { t: 40, r: 30, b: 20, l: 30 }
-            };
-            
-            Plotly.newPlot(gaugeElement, data, layout);
+            if (winnerElement) {
+                winnerElement.classList.add('win-animation');
+                
+                // Remove the animation after a few seconds
+                setTimeout(() => {
+                    winnerElement.classList.remove('win-animation');
+                }, 3000);
+            }
+        }
+        
+        // Show next hand button
+        const nextHandButton = document.getElementById('next-hand-btn');
+        if (nextHandButton) {
+            nextHandButton.style.display = 'block';
         }
     }
-}
-
-// Expose for Streamlit to call
-window.updateStats = updateStats;
+    
+    // Start a new hand
+    function startNewHand() {
+        return fetch('/api/game/new-hand', {
+            method: 'POST'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to start new hand');
+            }
+            return response.json();
+        })
+        .catch(error => {
+            console.error('Error starting new hand:', error);
+            return null;
+        });
+    }
+    
+    // Setup the game
+    function initializeGame() {
+        // Fetch initial game state
+        fetchGameState().then(gameState => {
+            if (gameState) {
+                updateUI(gameState);
+            }
+        });
+        
+        // Setup action button event listeners
+        const foldBtn = document.getElementById('fold-btn');
+        if (foldBtn) {
+            foldBtn.addEventListener('click', () => {
+                takeAction('fold').then(gameState => {
+                    if (gameState) {
+                        updateUI(gameState);
+                    }
+                });
+            });
+        }
+        
+        const checkBtn = document.getElementById('check-btn');
+        if (checkBtn) {
+            checkBtn.addEventListener('click', () => {
+                takeAction('check').then(gameState => {
+                    if (gameState) {
+                        updateUI(gameState);
+                    }
+                });
+            });
+        }
+        
+        const callBtn = document.getElementById('call-btn');
+        if (callBtn) {
+            callBtn.addEventListener('click', () => {
+                takeAction('call').then(gameState => {
+                    if (gameState) {
+                        updateUI(gameState);
+                    }
+                });
+            });
+        }
+        
+        const raiseBtn = document.getElementById('raise-btn');
+        const raiseInput = document.getElementById('raise-amount');
+        if (raiseBtn && raiseInput) {
+            raiseBtn.addEventListener('click', () => {
+                const amount = parseInt(raiseInput.value);
+                takeAction('raise', amount).then(gameState => {
+                    if (gameState) {
+                        updateUI(gameState);
+                    }
+                });
+            });
+        }
+        
+        const allInBtn = document.getElementById('all-in-btn');
+        if (allInBtn) {
+            allInBtn.addEventListener('click', () => {
+                takeAction('all-in').then(gameState => {
+                    if (gameState) {
+                        updateUI(gameState);
+                    }
+                });
+            });
+        }
+        
+        const nextHandBtn = document.getElementById('next-hand-btn');
+        if (nextHandBtn) {
+            nextHandBtn.addEventListener('click', () => {
+                nextHandBtn.style.display = 'none';
+                startNewHand().then(gameState => {
+                    if (gameState) {
+                        updateUI(gameState);
+                    }
+                });
+            });
+        }
+        
+        // Poll for game state updates
+        let gameStatePoller = setInterval(() => {
+            fetchGameState().then(gameState => {
+                if (gameState) {
+                    updateUI(gameState);
+                }
+            });
+        }, 2000); // Poll every 2 seconds
+        
+        // Clean up poller when leaving the page
+        window.addEventListener('beforeunload', () => {
+            clearInterval(gameStatePoller);
+        });
+    }
+    
+    // Initialize on page load
+    initializeGame();
+});

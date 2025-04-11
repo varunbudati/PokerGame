@@ -17,7 +17,7 @@ A fully interactive Texas Hold'em poker game built with Streamlit and modern web
 
 ```bash
 # Clone this repository
-git clone https://github.com/varunbudati/PokerGame.git
+git clone https://github.com/yourusername/poker-game.git
 
 # Navigate to the project directory
 cd poker-game
@@ -50,6 +50,20 @@ This game follows standard Texas Hold'em poker rules:
 - Betting rounds occur before the flop and after each community card is revealed
 - Hand rankings follow standard poker rules (Royal Flush > Straight Flush > Four of a Kind > etc.)
 
+## Integration with Your Website
+
+This poker game can be easily embedded into your existing website:
+
+1. Host the Streamlit app
+2. Use an iframe to embed the game in your website:
+```html
+<iframe
+  src="https://your-streamlit-app-url"
+  width="100%"
+  height="800px"
+  frameborder="0">
+</iframe>
+```
 
 ## License
 
