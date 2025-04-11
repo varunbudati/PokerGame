@@ -1,0 +1,28 @@
+PokerGame/
+├── README.md               # Documentation for the poker game
+├── requirements.txt        # Python dependencies for Streamlit
+├── app.py                  # Main Streamlit application file
+├── poker/                  # Core poker game logic
+│   ├── __init__.py
+│   ├── game.py             # Game engine and state management
+│   ├── player.py           # Player class and logic
+│   ├── cards.py            # Card deck and hand evaluation
+│   └── ai.py               # AI opponent logic
+├── frontend/               # Frontend assets
+│   ├── css/
+│   │   ├── style.css       # Main styles
+│   │   ├── dark.css        # Dark theme styles
+│   │   └── light.css       # Light theme styles
+│   ├── js/
+│   │   └── game.js         # Client-side game logic
+│   └── images/
+│       ├── cards/          # Card images
+│       │   ├── backs/      # Card back designs
+│       │   └── fronts/     # Card front images
+│       ├── chips/          # Poker chip images
+│       ├── table/          # Table images and textures
+│       └── ui/             # UI elements like buttons
+└── tests/                  # Test suite
+    ├── test_game.py        # Game logic tests
+    ├── test_cards.py       # Card tests
+    └── test_ai.py          # AI tests
