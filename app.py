@@ -6,7 +6,7 @@ import os
 from PIL import Image
 from streamlit_option_menu import option_menu
 from streamlit_autorefresh import st_autorefresh
-from streamlit_confetti import st_confetti
+#from streamlit_confetti import st_confetti
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
