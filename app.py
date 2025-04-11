@@ -6,7 +6,7 @@ import os
 from PIL import Image
 from streamlit_option_menu import option_menu
 from streamlit_autorefresh import st_autorefresh
-from streamlit_confetti import st_confetti
+#from streamlit_confetti import st_confetti
 import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
@@ -39,6 +39,7 @@ st.markdown(
         --text-dark: #242424;
     }
 
+<<<<<<< HEAD
     body {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         background-color: var(--dark-bg);
@@ -133,3 +134,8 @@ if st.button("All In"):
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
+=======
+# Auto-refresh if game is in progress and waiting for AI (every 2 seconds)
+if st.session_state.game and st.session_state.game.state not in [GameState.WAITING_FOR_PLAYER, GameState.HAND_COMPLETE]:
+    st_autorefresh(interval=2000, key="game_refresh")
+>>>>>>> f352cd7d1f96b9cce25b91edc7fb67479ab4d735

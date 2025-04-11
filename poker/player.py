@@ -1,82 +1,74 @@
-from typing import List, Optional
-from .cards import Hand
-
 class Player:
-    """A poker player with chips, cards, and action tracking."""
+    """Represents a poker player"""
     
-    def __init__(self, name: str, bankroll: int = 1000):
+    def __init__(self, name, chips=1000):
         self.name = name
-        self.bankroll = bankroll
-        self.hand = Hand()
+        self.chips = chips
+        self.hand = []
+        self.is_active = True
         self.current_bet = 0
-        self.folded = False
         self.is_all_in = False
         self.last_action = None
-    
-    def clear_hand(self):
-        """Reset the player's hand for a new round."""
-        self.hand.clear()
-        self.current_bet = 0
         self.folded = False
+        self.revealed = False
+    
+    def reset_for_hand(self):
+        """Reset player state for a new hand"""
+        self.hand = []
+        self.is_active = True
+        self.current_bet = 0
         self.is_all_in = False
         self.last_action = None
+        self.folded = False
+        self.revealed = False
     
-    def place_bet(self, amount: int) -> int:
-        """Place a bet for the player, returns the actual amount bet."""
-        if amount <= 0:
-            return 0
-        
-        # Cap the bet at the player's bankroll
-        actual_bet = min(amount, self.bankroll)
-        self.bankroll -= actual_bet
-        self.current_bet += actual_bet
-        
-        # Check if player is all in
-        if self.bankroll == 0:
+    def add_cards(self, cards):
+        """Add cards to player's hand"""
+        self.hand.extend(cards)
+    
+    def place_bet(self, amount):
+        """Place a bet of a specific amount"""
+        if amount > self.chips:
+            amount = self.chips
             self.is_all_in = True
-        
-        return actual_bet
-    
-    def collect_winnings(self, amount: int):
-        """Add winnings to the player's bankroll."""
-        self.bankroll += amount
-    
-    def can_bet(self, amount: int) -> bool:
-        """Check if the player can make a bet of the specified amount."""
-        return self.bankroll >= amount and not self.folded
+            
+        self.chips -= amount
+        self.current_bet += amount
+        return amount
     
     def fold(self):
-        """The player folds their hand."""
+        """Fold the hand"""
+        self.is_active = False
         self.folded = True
         self.last_action = "Fold"
     
     def check(self):
-        """The player checks (takes no action)."""
+        """Check (bet nothing)"""
         self.last_action = "Check"
     
-    def call(self, amount: int) -> int:
-        """The player calls the current bet."""
-        bet_amount = amount - self.current_bet
-        actual_bet = self.place_bet(bet_amount)
-        self.last_action = "Call"
-        return actual_bet
+    def call(self, call_amount):
+        """Call a bet"""
+        amount_to_call = call_amount - self.current_bet
+        bet_amount = self.place_bet(amount_to_call)
+        self.last_action = f"Call ${bet_amount}"
+        return bet_amount
     
-    def raise_bet(self, amount: int) -> int:
-        """The player raises the bet to the specified amount."""
-        bet_amount = amount - self.current_bet
-        actual_bet = self.place_bet(bet_amount)
-        self.last_action = f"Raise to {amount}"
-        return actual_bet
+    def raise_bet(self, raise_amount):
+        """Raise the bet"""
+        bet_amount = self.place_bet(raise_amount)
+        self.last_action = f"Raise ${bet_amount}"
+        return bet_amount
     
-    def all_in(self) -> int:
-        """The player goes all-in."""
-        actual_bet = self.place_bet(self.bankroll)
-        self.is_all_in = True
-        self.last_action = "All In"
-        return actual_bet
+    def all_in(self):
+        """Go all-in"""
+        bet_amount = self.place_bet(self.chips)
+        self.last_action = f"All-In ${bet_amount}"
+        return bet_amount
     
-    def __str__(self):
-        return f"{self.name} (${self.bankroll})"
+    def collect_winnings(self, amount):
+        """Collect winnings from the pot"""
+        self.chips += amount
     
-    def __repr__(self):
-        return self.__str__()
+    def reveal_cards(self):
+        """Reveal the player's cards"""
+        self.revealed = True

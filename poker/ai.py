@@ -1,239 +1,139 @@
 import random
-from typing import List, Optional
 from .player import Player
-from .cards import Card, evaluate_hand, HandRank
+from .cards import evaluate_hand
 
 class AIPlayer(Player):
-    """
-    AI poker player with different playing styles:
-    - Conservative: Folds often, only plays strong hands
-    - Balanced: Plays a mix of hands with some bluffing
-    - Aggressive: Plays many hands and bluffs frequently
-    """
+    """AI Poker Player"""
     
-    STYLES = ["conservative", "balanced", "aggressive"]
+    def __init__(self, name, chips=1000, difficulty="Medium"):
+        super().__init__(name, chips)
+        self.difficulty = difficulty
+        self.aggression = self._set_aggression()
+        self.bluff_factor = self._set_bluff_factor()
     
-    def __init__(self, name: str, bankroll: int = 1000, style: str = "balanced"):
-        super().__init__(name, bankroll)
-        
-        if style not in self.STYLES:
-            raise ValueError(f"Invalid AI style. Must be one of: {', '.join(self.STYLES)}")
-        
-        self.style = style
-        self.hand_strength = 0  # 0-10 scale, set when evaluating
+    def _set_aggression(self):
+        """Set aggression level based on difficulty"""
+        if self.difficulty == "Easy":
+            return random.uniform(0.1, 0.3)
+        elif self.difficulty == "Medium":
+            return random.uniform(0.3, 0.6)
+        elif self.difficulty == "Hard":
+            return random.uniform(0.6, 0.8)
+        else:  # Expert
+            return random.uniform(0.7, 0.9)
     
-    def evaluate_hand_strength(self, community_cards: List[Card] = None) -> float:
-        """
-        Evaluate the strength of the current hand on a scale of 0-10.
-        Considers community cards if available.
-        """
-        # If no cards yet, use pre-flop evaluation based on hole cards
-        if not community_cards:
-            # Simple pre-flop evaluation
-            card1, card2 = self.hand.cards
-            
-            # Check for pairs
-            if card1.rank == card2.rank:
-                # Pair value from 2-14, scale to 5-9 range
-                pair_value = 5 + (card1.value - 2) * 4/12
-                self.hand_strength = min(9, pair_value)
-                return self.hand_strength
-            
-            # Check for high cards
-            high_card = max(card1.value, card2.value)
-            low_card = min(card1.value, card2.value)
-            
-            # Calculate gap between cards
-            gap = high_card - low_card
-            
-            # Suited cards bonus
-            suited_bonus = 1 if card1.suit == card2.suit else 0
-            
-            # Connectors bonus (cards in sequence)
-            connector_bonus = 1 if gap == 1 else 0.5 if gap == 2 else 0
-            
-            # Base calculation - higher cards are better
-            base_strength = (high_card / 14) * 5  # Scale to 0-5 range
-            
-            # Add bonuses
-            self.hand_strength = min(10, base_strength + suited_bonus + connector_bonus)
-            
-            # Adjust for specific powerful starting hands
-            if (card1.rank == 'A' and card2.rank == 'K' and card1.suit == card2.suit):
-                self.hand_strength = 9  # AK suited
-            elif (card1.rank == 'A' and card2.rank == 'K'):
-                self.hand_strength = 8  # AK offsuit
-            
-            return self.hand_strength
-        
-        # Post-flop evaluation
-        else:
-            all_cards = self.hand.cards + community_cards
-            
-            # Evaluate the hand
-            hand_rank, kickers = evaluate_hand(all_cards)
-            
-            # Map hand ranks to strength scale
-            rank_strength = {
-                HandRank.HIGH_CARD: 2,
-                HandRank.PAIR: 3,
-                HandRank.TWO_PAIR: 5,
-                HandRank.THREE_OF_A_KIND: 6,
-                HandRank.STRAIGHT: 7,
-                HandRank.FLUSH: 8,
-                HandRank.FULL_HOUSE: 9,
-                HandRank.FOUR_OF_A_KIND: 9.5,
-                HandRank.STRAIGHT_FLUSH: 9.8,
-                HandRank.ROYAL_FLUSH: 10
-            }
-            
-            # Add small adjustments based on kickers
-            strength = rank_strength[hand_rank]
-            
-            # For pairs and such, consider the value of the cards
-            if hand_rank in [HandRank.PAIR, HandRank.TWO_PAIR, HandRank.THREE_OF_A_KIND]:
-                # Adjust by up to 0.9 based on the rank of the pair/trips
-                kicker_adjustment = min(0.9, (kickers[0] - 2) / 12)
-                strength += kicker_adjustment
-            
-            self.hand_strength = strength
-            return self.hand_strength
+    def _set_bluff_factor(self):
+        """Set bluff factor based on difficulty"""
+        if self.difficulty == "Easy":
+            return random.uniform(0.05, 0.15)
+        elif self.difficulty == "Medium":
+            return random.uniform(0.15, 0.25)
+        elif self.difficulty == "Hard":
+            return random.uniform(0.25, 0.40)
+        else:  # Expert
+            return random.uniform(0.30, 0.50)
     
-    def make_decision(self, game_state: dict) -> tuple:
-        """
-        AI makes a poker decision based on the current game state.
+    def decide_action(self, game_state):
+        """Decide AI action based on game state and difficulty"""
+        # Extract relevant information from game state
+        pot = game_state.get('pot', 0)
+        current_bet = game_state.get('current_bet', 0)
+        community_cards = game_state.get('community_cards', [])
         
-        Returns:
-            tuple: (action, amount) where action is one of:
-                  'fold', 'check', 'call', 'raise', 'all_in'
-        """
-        # Extract game state
-        current_bet = game_state['current_bet']
-        pot = game_state['pot']
-        community_cards = game_state['community_cards']
-        min_raise = game_state.get('min_raise', current_bet * 2)
-        
-        # Calculate how much more to call
+        # Calculate how much to call
         to_call = current_bet - self.current_bet
         
-        # Evaluate hand strength
-        self.evaluate_hand_strength(community_cards)
-        
-        # If player doesn't have enough chips to call
-        if to_call > self.bankroll:
-            # Either fold or go all-in
-            if self.decide_all_in():
-                return ('all_in', 0)
-            else:
-                return ('fold', 0)
-        
-        # Adjust thresholds based on AI style
-        if self.style == "conservative":
-            fold_threshold = 3.5
-            call_threshold = 4.5
-            raise_threshold = 6.0
-            reraise_threshold = 7.5
-            allin_threshold = 8.5
-            bluff_chance = 0.05
-        elif self.style == "balanced":
-            fold_threshold = 2.5
-            call_threshold = 3.5
-            raise_threshold = 5.0
-            reraise_threshold = 7.0
-            allin_threshold = 8.0
-            bluff_chance = 0.15
-        else:  # aggressive
-            fold_threshold = 1.5
-            call_threshold = 2.5
-            raise_threshold = 4.0
-            reraise_threshold = 6.0
-            allin_threshold = 7.5
-            bluff_chance = 0.25
-        
-        # Calculate pot odds ratio for calling
+        # Calculate pot odds
         pot_odds = to_call / (pot + to_call) if to_call > 0 else 0
         
-        # Decision making
-        if random.random() < bluff_chance:
-            # Random bluff
-            if to_call == 0:
-                # No bet yet, can check or raise
-                if random.random() < 0.7:
-                    # Bluff with a raise
-                    raise_amount = min(min_raise, self.bankroll)
-                    return ('raise', raise_amount)
-                else:
-                    return ('check', 0)
-            else:
-                # Call or raise as a bluff
-                if random.random() < 0.4 and self.bankroll > min_raise:
-                    raise_amount = random.randint(min_raise, min(self.bankroll, pot // 2))
-                    return ('raise', raise_amount)
-                else:
-                    return ('call', to_call)
+        # Evaluate hand strength (0 to 1)
+        hand_strength = self._evaluate_hand_strength(community_cards)
         
-        # Regular decision based on hand strength
-        if to_call == 0:
-            # No one has bet yet
-            if self.hand_strength > raise_threshold:
-                # Strong hand, raise
-                raise_size = calculate_raise_size(self.hand_strength, pot, self.bankroll, self.style)
-                return ('raise', raise_size)
-            elif self.hand_strength > call_threshold:
-                # Decent hand, check
-                return ('check', 0)
+        # Add some randomness based on bluff factor
+        if random.random() < self.bluff_factor:
+            hand_strength = max(0.7, hand_strength)  # Occasionally pretend to have a good hand
+        
+        # Decision logic
+        if to_call == 0:  # Can check
+            # Sometimes raise with a good hand
+            if hand_strength > 0.7 and random.random() < self.aggression:
+                # Raise proportional to hand strength and pot
+                raise_amount = int(min(self.chips, pot * hand_strength * random.uniform(0.1, 0.5)))
+                return "raise", max(10, raise_amount)
             else:
-                # Weak hand, check and hope to see a cheap flop
-                return ('check', 0)
-        else:
-            # Facing a bet
-            if self.hand_strength > allin_threshold and self.bankroll < pot * 3:
-                # Very strong hand and relatively small stack, go all-in
-                return ('all_in', 0)
-            elif self.hand_strength > reraise_threshold:
-                # Strong enough to reraise
-                raise_size = calculate_raise_size(self.hand_strength, pot, self.bankroll, self.style)
-                return ('raise', raise_size)
-            elif self.hand_strength > call_threshold:
-                # Decent hand worth a call
-                return ('call', to_call)
+                return "check", 0
+        else:  # There's a bet to call
+            # Fold with weak hands
+            if hand_strength < pot_odds * (1 - self.aggression):
+                return "fold", 0
+                
+            # Call with medium hands
+            elif hand_strength < 0.6:
+                if to_call > self.chips * 0.3 and hand_strength < 0.4:
+                    return "fold", 0  # Too expensive for a mediocre hand
+                return "call", 0
+                
+            # Raise with strong hands
             else:
-                # Weak hand, fold
-                return ('fold', 0)
+                # All-in with very strong hands
+                if hand_strength > 0.85 and random.random() < self.aggression:
+                    return "all_in", 0
+                    
+                # Otherwise raise
+                raise_factor = hand_strength * self.aggression * random.uniform(0.5, 1.5)
+                raise_amount = int(min(self.chips, (pot + to_call) * raise_factor))
+                
+                # Ensure minimum raise
+                if raise_amount <= to_call:
+                    return "call", 0
+                
+                return "raise", raise_amount
     
-    def decide_all_in(self) -> bool:
-        """Decide whether to go all-in when can't afford to call."""
-        # Base decision on hand strength and style
-        if self.style == "conservative":
-            return self.hand_strength >= 7
-        elif self.style == "balanced":
-            return self.hand_strength >= 6
-        else:  # aggressive
-            return self.hand_strength >= 5 or random.random() < 0.2
-
-def calculate_raise_size(hand_strength: float, pot: int, bankroll: int, style: str) -> int:
-    """Calculate an appropriate raise size based on hand strength and style."""
-    
-    # Base calculation on hand strength (0-10 scale)
-    if hand_strength > 8.5:  # Monster
-        pot_percent = random.uniform(1.0, 1.5)  # 100-150% of pot
-    elif hand_strength > 7:  # Very strong
-        pot_percent = random.uniform(0.7, 1.0)  # 70-100% of pot
-    elif hand_strength > 5:  # Strong
-        pot_percent = random.uniform(0.5, 0.8)  # 50-80% of pot
-    else:  # Decent
-        pot_percent = random.uniform(0.3, 0.6)  # 30-60% of pot
-    
-    # Adjust based on style
-    if style == "conservative":
-        pot_percent *= 0.8
-    elif style == "aggressive":
-        pot_percent *= 1.2
-    
-    # Calculate raise amount
-    raise_amount = int(pot * pot_percent)
-    
-    # Ensure minimum raise and maximum bankroll
-    raise_amount = max(1, min(raise_amount, bankroll))
-    
-    return raise_amount
+    def _evaluate_hand_strength(self, community_cards):
+        """Evaluate the strength of the current hand (0 to 1)"""
+        # If no community cards, evaluate based on hole cards
+        if not community_cards:
+            # Evaluate pocket pairs
+            if len(self.hand) == 2 and self.hand[0].rank == self.hand[1].rank:
+                rank_value = self.hand[0].rank_value
+                # Higher pairs are stronger
+                return 0.5 + (rank_value / 25.0)
+                
+            # Evaluate connected cards (straight potential)
+            elif len(self.hand) == 2:
+                rank_diff = abs(self.hand[0].rank_value - self.hand[1].rank_value)
+                if rank_diff <= 1:  # Connected
+                    high_card = max(self.hand[0].rank_value, self.hand[1].rank_value)
+                    return 0.3 + (high_card / 40.0)
+                    
+                # Evaluate suited cards (flush potential)
+                if self.hand[0].suit == self.hand[1].suit:
+                    high_card = max(self.hand[0].rank_value, self.hand[1].rank_value)
+                    return 0.25 + (high_card / 50.0)
+                
+                # High cards
+                high_card = max(self.hand[0].rank_value, self.hand[1].rank_value)
+                if high_card >= 10:  # 10, J, Q, K, A
+                    return 0.2 + ((high_card - 10) / 25.0)
+            
+            # Low, unconnected, unsuited cards
+            return 0.1
+        
+        # With community cards, do a proper evaluation
+        all_cards = self.hand + community_cards
+        
+        # Get the numerical rank value (0-9)
+        hand_value = evaluate_hand(all_cards)
+        hand_rank = hand_value[0]
+        
+        # Scale from 0 to 1 based on hand rank
+        # High Card (0) → 0.1 to 0.2
+        # Pair (1) → 0.2 to 0.3
+        # Two Pair (2) → 0.3 to 0.4
+        # etc.
+        base_strength = min(0.9, (hand_rank + 1) / 10.0)
+        
+        # Add a small factor based on kickers
+        kicker_factor = sum(hand_value[1][:3]) / 100.0 if hand_value[1] else 0
+        
+        return base_strength + kicker_factor
