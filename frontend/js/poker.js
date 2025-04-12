@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Create and render a card
     function createCard(cardCode, faceUp = false) {
         const card = document.createElement('div');
-        card.className = 'card' + (faceUp ? ' flipped' : '');
+        card.className = 'card' + (faceUp ? 'flipped' : '');
         
         const cardInner = document.createElement('div');
         cardInner.className = 'card-inner';
@@ -270,10 +270,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 return response.json();
             })
+            .then(gameState => {
+                // Process the game state immediately when received
+                if (gameState && gameState.currentPlayer !== 'player' && !gameState.handComplete) {
+                    // If it's AI's turn and game is waiting for a response, handle it immediately
+                    processAITurn(gameState);
+                }
+                return gameState;
+            })
             .catch(error => {
                 console.error('Error fetching game state:', error);
                 return null;
             });
+    }
+    
+    // Optimize AI decision processing to reduce delays
+    function processAITurn(gameState) {
+        if (gameState && gameState.aiDecisionNeeded) {
+            // Remove artificial waiting time
+            fetch('/api/game/ai-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Updated state will be fetched on next poll
+                    console.log("AI decision processed");
+                }
+            })
+            .catch(error => {
+                console.error('Error processing AI action:', error);
+            });
+        }
     }
     
     // Take player action
@@ -422,23 +453,28 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Handle end of hand
     function handleHandComplete(gameState) {
-        // Reveal all cards
-        gameState.opponents.forEach((opponent, index) => {
-            const opponentElement = document.getElementById(`opponent-${index + 1}`);
-            if (opponentElement) {
-                const cardsElement = opponentElement.querySelector('.opponent-cards');
-                if (cardsElement) {
-                    const cards = cardsElement.querySelectorAll('.card');
-                    cards.forEach(card => flipCard(card, true));
+        // Only reveal opponent cards at showdown
+        if (gameState.current_state === 'Showdown') {
+            gameState.opponents.forEach((opponent, index) => {
+                const opponentElement = document.getElementById(`opponent-${index + 1}`);
+                if (opponentElement) {
+                    const cardsElement = opponentElement.querySelector('.opponent-cards');
+                    if (cardsElement) {
+                        const cards = cardsElement.querySelectorAll('.card');
+                        cards.forEach(card => flipCard(card, true));
+                    }
                 }
-            }
-        });
+            });
+        }
         
-        // Highlight winner
+        // Highlight winner with animation
         if (gameState.winner) {
-            const winnerElement = document.getElementById(
-                gameState.winner.isPlayer ? 'player-area' : `opponent-${gameState.winner.index}`
-            );
+            let winnerElement;
+            if (gameState.winner.isPlayer) {
+                winnerElement = document.getElementById('player-area');
+            } else if (typeof gameState.winner.index === 'number') {
+                winnerElement = document.getElementById(`opponent-${gameState.winner.index}`);
+            }
             
             if (winnerElement) {
                 winnerElement.classList.add('win-animation');

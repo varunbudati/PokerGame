@@ -60,23 +60,12 @@ st.markdown(
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
     }
 
-    .card {
-        display: inline-block;
-        width: 80px;
-        height: 120px;
-        background-color: white;
-        border-radius: 5px;
-        margin: 0 5px;
-        text-align: center;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    }
-    
-    .card-red {
-        color: #e63946;
-    }
-    
-    .card-black {
-        color: #1d3557;
+    .card-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        min-height: 110px;
     }
 
     .chip {
@@ -253,28 +242,60 @@ with st.sidebar:
 
 # Main game area (display only if "Play" is selected)
 if selected == "Play":
-    # Function to display cards
+    # Function to display cards using inline styles
     def display_card(card_code):
-        if not card_code:
-            return "🂠"  # Back of card
-            
+        if not card_code or len(card_code) < 2:
+            # Return HTML for a face-down card
+            return """
+            <div style="
+                display: inline-block;
+                width: 70px;
+                height: 100px;
+                background-image: linear-gradient(to bottom right, #1a4536, #2f7561);
+                border: 1px solid #aaa;
+                border-radius: 5px;
+                margin: 0 5px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                vertical-align: top;
+            "></div>
+            """
+
         rank = card_code[0]
         suit = card_code[1]
-        
-        suit_symbol = {
-            'h': '♥',
-            'd': '♦',
-            'c': '♣',
-            's': '♠'
-        }.get(suit, '?')
-        
-        color_class = "card-red" if suit in ['h', 'd'] else "card-black"
-        
+
+        suit_symbol = {'h': '♥', 'd': '♦', 'c': '♣', 's': '♠'}.get(suit, '?')
+        color = "red" if suit in ['h', 'd'] else "black"
+
+        # Use inline styles for better control within Streamlit markdown
         return f"""
-        <div class="card">
-            <div class="{color_class}">
-                <h2>{rank}{suit_symbol}</h2>
-            </div>
+        <div style="
+            display: inline-block;
+            width: 70px;
+            height: 100px;
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin: 0 5px;
+            padding: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            position: relative;
+            color: {color};
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            vertical-align: top;
+        ">
+            <div style="position: absolute; top: 5px; left: 5px;">{rank}</div>
+            <div style="position: absolute; top: 5px; right: 5px;">{suit_symbol}</div>
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 30px;
+            ">{suit_symbol}</div>
+            <div style="position: absolute; bottom: 5px; left: 5px; transform: rotate(180deg);">{suit_symbol}</div>
+            <div style="position: absolute; bottom: 5px; right: 5px; transform: rotate(180deg);">{rank}</div>
         </div>
         """
 
@@ -289,8 +310,10 @@ if selected == "Play":
             5: "white"
         }.get(value, "gray")
         
+        text_color = "white" if color in ["black", "blue", "purple", "green", "red"] else "black"
+        
         return f"""
-        <div class="chip" style="background-color: {color};">
+        <div class="chip" style="background-color: {color}; color: {text_color};">
             ${value}
         </div>
         """
@@ -305,24 +328,30 @@ if selected == "Play":
             starting_chips = st.number_input("Starting Chips", min_value=100, max_value=10000, value=1000, step=100)
             
             if st.button("Start New Game", use_container_width=True):
-                # Create player
-                human_player = Player("You", starting_chips)
-                
-                # Create AI opponents
-                ai_players = [
-                    AIPlayer(f"AI Player {i+1}", starting_chips, difficulty="Medium") 
-                    for i in range(num_opponents)
-                ]
-                
-                # Initialize all players
-                all_players = [human_player] + ai_players
-                st.session_state.players = all_players
-                
-                # Create game
-                st.session_state.game = PokerGame(all_players)
-                st.session_state.game.start_game()
-                st.session_state.pot = 0
-                st.session_state.current_round = "Pre-Flop"
+                # Show loading animation
+                with st.spinner("🎲 Setting up the poker table..."):
+                    # Create player
+                    human_player = Player("You", starting_chips)
+                    
+                    # Create AI opponents
+                    ai_players = [
+                        AIPlayer(f"AI Player {i+1}", starting_chips, difficulty="Medium") 
+                        for i in range(num_opponents)
+                    ]
+                    
+                    # Initialize all players
+                    all_players = [human_player] + ai_players
+                    st.session_state.players = all_players
+                    
+                    # Create game
+                    st.session_state.game = PokerGame(all_players)
+                    st.session_state.game.start_game()
+                    st.session_state.pot = 0
+                    st.session_state.current_round = "Pre-Flop"
+                    
+                    # Small delay to show the loading message
+                    time.sleep(0.8)
+                    
                 st.rerun()
         
         with col1:
@@ -336,23 +365,27 @@ if selected == "Play":
             """)
             
             # Show sample cards as decoration
-            st.markdown("""
+            welcome_cards_html = """
             <div style="text-align: center; margin: 30px;">
             """+display_card("As")+display_card("Kh")+display_card("Qd")+display_card("Jc")+display_card("Ts")+"""
             </div>
-            """, unsafe_allow_html=True)
+            """
+            st.html(welcome_cards_html)
     else:
         # Game is running - display game state
         game = st.session_state.game
         
         # Auto-refresh to simulate game updates - every 3 seconds if it's AI's turn
-        if game.current_player and game.current_player.name != "You":
-            st_autorefresh(interval=3000)
+        if game.current_player and game.current_player.name != "You" and not game.is_hand_complete():
+            st_autorefresh(interval=3000, key="ai_refresh")
         
         # Check if we need to show the winning animation
         if st.session_state.show_confetti:
             #st_confetti()
-            st.success(f"🎉 {st.session_state.winner.name} wins the pot!")
+            if st.session_state.winner:
+                st.success(f"🎉 {st.session_state.winner.name} wins the pot!")
+            else:
+                st.info("The hand is complete. No winner determined.")
             st.session_state.show_confetti = False
             
         # Game table container
@@ -361,14 +394,18 @@ if selected == "Play":
         # Game info
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
-            st.subheader(f"Round: {st.session_state.current_round}")
+            st.subheader(f"Round: {game.current_state}")
+            # Update the session state round
+            st.session_state.current_round = game.current_state
         with col2:
-            st.subheader(f"Pot: ${st.session_state.pot}")
+            st.subheader(f"Pot: ${game.pot}")
+            # Update the session state pot
+            st.session_state.pot = game.pot
         with col3:
             if st.button("Fold Hand", key="fold_hand"):
                 # End the current hand
-                if game.human_player:
-                    game.human_player.fold()
+                if game.human_player and game.human_player in game.active_players:
+                    game.process_action(game.human_player, "fold")
                     
                 # Update game state
                 game.process_round()
@@ -376,166 +413,302 @@ if selected == "Play":
             
         # Community cards area
         st.subheader("Community Cards")
-        community_cards_html = "<div style='text-align: center; margin: 20px 0;'>"
+        community_cards_html = "<div class='card-container'>"
         
         # Get community cards from game state
         community_cards = game.get_community_cards() if hasattr(game, 'get_community_cards') else []
         
         # Display community cards or placeholders
+        num_displayed = 0
         if community_cards:
             for card in community_cards:
                 community_cards_html += display_card(str(card))
-        else:
-            for _ in range(5):
-                community_cards_html += display_card("")  # Empty card placeholder
+                num_displayed += 1
                 
+        for _ in range(5 - num_displayed):
+            community_cards_html += display_card(None)
+            
         community_cards_html += "</div>"
-        st.markdown(community_cards_html, unsafe_allow_html=True)
+        st.html(community_cards_html)
         
         # Player sections
         st.subheader("Players")
         
         # Arrange players in a grid
-        cols = st.columns(len(st.session_state.players))
+        num_players = len(st.session_state.players)
+        cols = st.columns(num_players)
         
         for i, player in enumerate(st.session_state.players):
             with cols[i]:
                 # Determine if this player is active
                 is_active = game.current_player == player if hasattr(game, 'current_player') else False
                 is_winner = st.session_state.winner == player if st.session_state.winner else False
+                is_folded = getattr(player, 'is_folded', False)
                 
-                player_class = "player-active" if is_active else ""
+                player_class = "player-active" if is_active and not is_folded else ""
                 player_class += " winner" if is_winner else ""
+                player_class += " player-folded" if is_folded else ""
                 
-                st.markdown(f"<div class='{player_class}'>", unsafe_allow_html=True)
+                st.markdown(f"<div class='player-box {player_class}' style='padding: 10px; border-radius: 8px; background-color: rgba(0,0,0,0.1); margin-bottom: 10px; {'opacity: 0.6;' if is_folded else ''}'>", unsafe_allow_html=True)
                 
                 # Player name and chips
-                st.markdown(f"### {player.name}")
+                st.markdown(f"<h5>{player.name}</h5>", unsafe_allow_html=True)
                 st.markdown(f"Chips: ${player.chips}")
                 
                 # Player cards
-                player_cards_html = "<div style='text-align: center; margin: 15px 0;'>"
+                player_cards_html = "<div class='card-container'>"
                 
                 # Show player's cards
                 player_cards = player.hand if hasattr(player, 'hand') else []
-                
-                # Human player can see their cards, AI cards are hidden unless revealed
-                if player.name == "You" or getattr(player, 'revealed', False):
-                    for card in player_cards:
-                        player_cards_html += display_card(str(card))
+
+                # Only show AI player cards at showdown or when they've been explicitly revealed
+                # Human player's cards are always visible to them
+                show_cards = (player.name == "You" or  # Always show the human player's cards
+                              getattr(player, 'revealed', False) or  # Show revealed cards
+                              (game.current_state == GameState.SHOWDOWN) or  # Show all cards at showdown
+                              (getattr(player, 'is_active', False) and game.is_hand_complete()))  # Show active player cards when hand is complete
+
+                if show_cards and not is_folded:
+                    if isinstance(player_cards, list) and all(isinstance(c, object) for c in player_cards):
+                        for card in player_cards:
+                            player_cards_html += display_card(str(card))
+                        for _ in range(2 - len(player_cards)):
+                            player_cards_html += display_card(None)
+                    else:
+                        player_cards_html += display_card(None)
+                        player_cards_html += display_card(None)
                 else:
-                    for _ in range(2):
-                        player_cards_html += display_card("")  # Card back
-                        
+                    player_cards_html += display_card(None)
+                    player_cards_html += display_card(None)
+                    
                 player_cards_html += "</div>"
-                st.markdown(player_cards_html, unsafe_allow_html=True)
+                st.html(player_cards_html)
                 
-                # Show last action
-                if hasattr(player, 'last_action') and player.last_action:
-                    st.markdown(f"**Last Action:** {player.last_action}")
+                # Show last action or folded status
+                if is_folded:
+                    st.markdown("**Folded**")
+                elif hasattr(player, 'last_action') and player.last_action:
+                    st.markdown(f"**Action:** {player.last_action}")
                 
                 # Player actions - only show for human player when it's their turn
-                if player.name == "You" and is_active:
+                if player.name == "You" and is_active and not is_folded:
                     st.markdown("<div class='action-buttons'>", unsafe_allow_html=True)
                     
-                    col1, col2 = st.columns(2)
+                    action_cols = st.columns(3)
                     
-                    with col1:
-                        if st.button("Check", key=f"check_{i}", disabled=not game.can_check() if hasattr(game, 'can_check') else False):
-                            player.check()
-                            game.process_action(player, "check")
-                            st.rerun()
-                            
-                        if st.button("Call", key=f"call_{i}", disabled=not game.can_call() if hasattr(game, 'can_call') else False):
-                            player.call(game.current_bet if hasattr(game, 'current_bet') else 0)
-                            game.process_action(player, "call")
-                            st.rerun()
+                    # Fixed method calls - pass the player parameter
+                    can_check = game.can_check(player) if hasattr(game, 'can_check') else False
+                    can_call = game.can_call(player) if hasattr(game, 'can_call') else False
+                    call_amount = game.get_call_amount(player) if hasattr(game, 'get_call_amount') else 0
+                    can_raise = game.can_raise(player) if hasattr(game, 'can_raise') else True
                     
-                    with col2:
-                        if st.button("Fold", key=f"fold_{i}"):
-                            player.fold()
-                            game.process_action(player, "fold")
-                            st.rerun()
-                            
-                        # Raise requires a slider to determine amount
-                        can_raise = game.can_raise() if hasattr(game, 'can_raise') else True
-                        if can_raise:
-                            min_raise = game.minimum_raise if hasattr(game, 'minimum_raise') else 10
-                            raise_amount = st.slider("Raise Amount", 
-                                                    min_value=min_raise, 
-                                                    max_value=player.chips,
-                                                    value=min_raise,
-                                                    key=f"raise_slider_{i}")
-                            
-                            if st.button("Raise", key=f"raise_{i}"):
-                                player.raise_bet(raise_amount)
-                                game.process_action(player, "raise", raise_amount)
+                    with action_cols[0]:
+                        if st.button("Fold", key=f"fold_{i}", use_container_width=True):
+                            # Process action and check if round is complete
+                            if game.process_action(player, "fold"):
+                                # Only move to next round if this completes the current round
+                                if game.is_round_complete() and not game.is_hand_complete():
+                                    with st.spinner("Moving to next round..."):
+                                        game.next_round()
+                                elif game.is_hand_complete():
+                                    # If hand is complete, make sure winners are determined
+                                    game.determine_winners()
                                 st.rerun()
                                 
-                    # All-in button at the bottom
-                    if st.button("All In", key=f"all_in_{i}", type="primary"):
-                        player.all_in()
-                        game.process_action(player, "all_in")
-                        st.rerun()
+                        if st.button("Check", key=f"check_{i}", disabled=not can_check, use_container_width=True):
+                            if game.process_action(player, "check"):
+                                # Check if the round is complete after this check
+                                if game.is_round_complete() and not game.is_hand_complete():
+                                    with st.spinner("Moving to next round..."):
+                                        next_state = game.next_round()
+                                        st.success(f"Moving to {next_state} round")
+                                st.rerun()
+                    
+                    with action_cols[1]:
+                        if st.button(f"Call ${call_amount}", key=f"call_{i}", disabled=not can_call or call_amount <= 0, use_container_width=True):
+                            if game.process_action(player, GameAction.CALL):
+                                if game.is_round_complete() and not game.is_hand_complete():
+                                    with st.spinner("Moving to next round..."):
+                                        next_state = game.next_round()
+                                        st.success(f"Moving to {next_state} round")
+                                st.rerun()
                                 
+                        if st.button("All In", key=f"all_in_{i}", type="primary", use_container_width=True):
+                            # Process all-in action
+                            result = game.process_action(player, GameAction.ALL_IN)
+                            if result:
+                                with st.spinner("Going all-in..."):
+                                    # When player goes all-in, we should automatically deal all remaining cards
+                                    # and move to showdown if the round is complete
+                                    if game.is_round_complete():
+                                        st.success("All-in! Dealing remaining cards...")
+                                        # Continue dealing cards until showdown
+                                        while game.current_state != GameState.SHOWDOWN and not game.is_hand_complete():
+                                            game.next_round()
+                                    
+                                    # If hand is complete, determine winner
+                                    if game.is_hand_complete():
+                                        winners = game.determine_winners()
+                                        st.session_state.winner = winners[0] if len(winners) == 1 else "Tie"
+                                        if len(winners) > 1:
+                                            st.session_state.winners = winners
+                                        game.finalize_hand()
+                            st.rerun()
+                    
+                    with action_cols[2]:
+                        if can_raise:
+                            min_raise = game.minimum_raise if hasattr(game, 'minimum_raise') else 10
+                            max_raise = player.chips
+                            if min_raise > max_raise:
+                                min_raise = max_raise
+                            
+                            # Calculate a better default raise amount based on pot size and current bet
+                            default_raise = min(max(min_raise, int(game.pot * 0.5)), max_raise)
+                            
+                            if max_raise >= min_raise:
+                                raise_amount = st.number_input("Raise By", 
+                                                            min_value=min_raise, 
+                                                            max_value=max_raise,
+                                                            value=default_raise,
+                                                            step=10,
+                                                            key=f"raise_amount_{i}",
+                                                            help="Amount to raise beyond the current bet")
+                                
+                                if st.button("Raise", key=f"raise_{i}", use_container_width=True, disabled=(raise_amount > max_raise)):
+                                    # Process the raise action
+                                    if game.process_action(player, GameAction.RAISE, raise_amount):
+                                        # Update the pot amount in session state
+                                        st.session_state.pot = game.pot
+                                        
+                                        # Check if round complete after raise
+                                        if game.is_round_complete() and not game.is_hand_complete():
+                                            with st.spinner("Moving to next round..."):
+                                                next_state = game.next_round()
+                                                st.success(f"Moving to {next_state} round")
+                                        
+                                        # Small delay to allow state update
+                                        time.sleep(0.2)
+                                        st.rerun()
+                            else:
+                                st.markdown("<small>Cannot raise - insufficient chips</small>", unsafe_allow_html=True)
+                    
                     st.markdown("</div>", unsafe_allow_html=True)
                 
                 st.markdown("</div>", unsafe_allow_html=True)
             
         # Process AI actions if it's their turn
-        if game.current_player and game.current_player.name != "You":
-            # AI takes action
-            time.sleep(1)  # Simulate thinking
-            action, amount = game.current_player.decide_action(
-                game.get_game_state() if hasattr(game, 'get_game_state') else {}
-            )
-            game.process_action(game.current_player, action, amount)
+        if game.current_player and game.current_player != game.human_player and not game.is_hand_complete():
+            with st.spinner(f"{game.current_player.name} is thinking..."):
+                # Small delay to make AI seem more realistic
+                time.sleep(0.3)
+                
+                try:
+                    # Get AI action
+                    action, amount = game.current_player.decide_action(
+                        game.get_game_state() if hasattr(game, 'get_game_state') else {}
+                    )
+                    
+                    # Process the action
+                    result = game.process_action(game.current_player, action, amount)
+                    
+                    # After AI action, check if round is complete
+                    if result and game.is_round_complete() and not game.is_hand_complete():
+                        with st.spinner("🃏 Dealing community cards for next round..."):
+                            # This will reveal the appropriate community cards
+                            next_round = game.next_round()
+                            st.info(f"Moving to {next_round} round")
+                    
+                    # If it's still not the human player's turn, continue processing
+                    if game.current_player and game.current_player != game.human_player and not game.is_hand_complete():
+                        game.process_round()
+                except Exception as e:
+                    st.error(f"Error during AI action: {e}")
+                    import traceback
+                    st.error(traceback.format_exc())
+            
+            # Always rerun to update the UI
             st.rerun()
+        
+        # Check for hand completion
+        if game.is_hand_complete():
+            # Only handle hand completion if not already handled
+            if not st.session_state.winner:
+                with st.spinner("Determining the winner..."):
+                    # Get all winners
+                    winners = game.determine_winners()
+                    
+                    # Update session state
+                    if winners:
+                        if len(winners) == 1:
+                            st.session_state.winner = winners[0]
+                            st.session_state.winning_hand_name = getattr(winners[0], 'hand_name', 'Unknown Hand')
+                        else:
+                            # Handle multiple winners
+                            st.session_state.winner = "Tie"
+                            st.session_state.winners = winners
+                            st.session_state.winning_hand_name = getattr(game, 'winning_hand_name', 'Unknown Hand')
+                    else:
+                        # Fallback in case no winners were determined
+                        if len(game.active_players) > 0:
+                            st.session_state.winner = game.active_players[0]
+                            st.session_state.winning_hand_name = "Default Win"
+                    
+                    # Show confetti animation
+                    st.session_state.show_confetti = bool(winners)
+                    
+                    # Finalize the hand to distribute the pot
+                    game.finalize_hand()
+                    
+                    # Record game history
+                    game_result = "win" if st.session_state.winner == game.human_player else "loss"
+                    game_data = {
+                        "date": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "result": game_result,
+                        "pot_size": st.session_state.pot,
+                        "num_players": len(st.session_state.players),
+                        "winner": st.session_state.winner.name if hasattr(st.session_state.winner, 'name') else "Tie"
+                    }
+                    st.session_state.game_history.append(game_data)
             
-        # Check for end of round/hand
-        if game.is_round_complete() if hasattr(game, 'is_round_complete') else False:
-            # Move to next round
-            next_round = game.next_round()
-            st.session_state.current_round = next_round
-            st.rerun()
-            
-        if game.is_hand_complete() if hasattr(game, 'is_hand_complete') else False:
-            # End of hand, determine winner
-            winner = game.determine_winner()
-            st.session_state.winner = winner
-            st.session_state.show_confetti = True
-            
-            # Record game in history
-            st.session_state.game_history.append({
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "result": "win" if winner.name == "You" else "loss",
-                "pot": st.session_state.pot,
-                "winner": winner.name
-            })
-            
-            # New hand button
-            if st.button("Next Hand", type="primary", use_container_width=True):
-                game.start_new_hand()
-                st.session_state.winner = None
-                st.session_state.pot = 0
-                st.session_state.current_round = "Pre-Flop"
+            # Show appropriate winner message
+            if st.session_state.winner == "Tie":
+                winner_names = ", ".join(w.name for w in st.session_state.winners)
+                st.success(f"🏆 It's a tie! Players {winner_names} split the pot of ${st.session_state.pot} with {st.session_state.winning_hand_name}!")
+            elif st.session_state.winner:
+                st.success(f"🏆 {st.session_state.winner.name} wins the pot of ${st.session_state.pot} with {st.session_state.winning_hand_name}!")
+            else:
+                st.info("Hand complete with no winner.")
+
+            # Next hand button
+            if st.button("Next Hand", type="primary", key="next_hand_button", use_container_width=True):
+                with st.spinner("🎲 Dealing new hand..."):
+                    # Reset session state
+                    st.session_state.winner = None
+                    if "winners" in st.session_state:
+                        del st.session_state.winners
+                    st.session_state.show_confetti = False
+                    
+                    # Start a new hand
+                    game.start_new_hand()
+                    
+                    # Small delay to show spinner
+                    time.sleep(0.5)
+                
+                # Rerun to update UI with new hand
                 st.rerun()
         
         st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Game controls at the bottom
+            
         col1, col2 = st.columns([1, 1])
         
         with col1:
             if st.button("End Game", type="secondary"):
-                # Reset game state
                 st.session_state.game = None
                 st.session_state.players = []
                 st.session_state.winner = None
                 st.rerun()
                 
         with col2:
-            # Help button that shows rules in an expander
             with st.expander("Hand Rankings"):
                 st.markdown("""
                 1. **Royal Flush**: A, K, Q, J, 10, all the same suit

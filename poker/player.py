@@ -11,6 +11,7 @@ class Player:
         self.last_action = None
         self.folded = False
         self.revealed = False
+        self.hand_name = ""  # Store the name of the player's hand
     
     def reset_for_hand(self):
         """Reset player state for a new hand"""
@@ -21,6 +22,7 @@ class Player:
         self.last_action = None
         self.folded = False
         self.revealed = False
+        self.hand_name = ""  # Reset hand name
     
     def add_cards(self, cards):
         """Add cards to player's hand"""

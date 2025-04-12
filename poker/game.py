@@ -1,11 +1,15 @@
 import random
 import time
+import logging
 from typing import List, Optional, Dict, Tuple, Any
 from enum import Enum, auto
 
 from .cards import Deck, evaluate_hand, rank_to_string
 from .player import Player
 from .ai import AIPlayer
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class GameState:
     """Represents the current state of a poker game"""
@@ -41,6 +45,7 @@ class PokerGame:
         self.big_blind = 10
         self.dealer_index = 0
         self.active_players = []
+        self.winning_hand_name = ""
     
     def start_game(self):
         """Start a new poker game"""
@@ -126,54 +131,104 @@ class PokerGame:
             "dealer_position": self.dealer_index,
             "active_players": len(self.active_players),
             "community_cards": self.community_cards,
-            "player_cards": self.human_player.hand if self.human_player else []
+            "player_cards": self.human_player.hand if self.human_player else [],
+            "min_raise": self.minimum_raise,  # Added for UI to know minimum raise
+            "hand_complete": self.is_hand_complete()  # Added to help UI know when hand is done
         }
     
     def process_action(self, player, action, amount=0):
         """Process a player action"""
+        logging.info(f"Player {player.name} performing action {action} with amount {amount}")
         if player != self.current_player:
+            logging.warning(f"It is not {player.name}'s turn.")
             return False
-            
+        
+        # Process based on action type    
         if action == GameAction.FOLD:
             player.fold()
+            logging.info(f"Player {player.name} folded.")
         
         elif action == GameAction.CHECK:
             if self.current_bet > player.current_bet:
+                logging.warning(f"Player {player.name} cannot check.")
                 return False  # Can't check if there's a bet to call
             player.check()
+            logging.info(f"Player {player.name} checked.")
         
         elif action == GameAction.CALL:
             bet_amount = player.call(self.current_bet)
             self.pot += bet_amount
+            logging.info(f"Player {player.name} called, betting {bet_amount}.")
         
         elif action == GameAction.RAISE:
             # Ensure minimum raise
             if amount < self.minimum_raise:
+                logging.warning(f"Raise amount {amount} is less than minimum raise {self.minimum_raise}.")
                 amount = self.minimum_raise
                 
             # Calculate actual raise amount (includes matching current bet)
-            total_bet = self.current_bet - player.current_bet + amount
+            total_bet = self.current_bet + amount
             
+            # Make sure player's total bet is at least that much
             bet_amount = player.raise_bet(total_bet)
             self.pot += bet_amount
             self.current_bet = player.current_bet
             self.minimum_raise = amount  # Set minimum raise for next raise
+            logging.info(f"Player {player.name} raised to {self.current_bet}.")
         
         elif action == GameAction.ALL_IN:
             bet_amount = player.all_in()
             self.pot += bet_amount
+            logging.info(f"Player {player.name} is all-in with {bet_amount}.")
             
             # Update current bet if this all-in is higher
             if player.current_bet > self.current_bet:
                 self.current_bet = player.current_bet
+                # Since this is a raise, update minimum raise accordingly
+                self.minimum_raise = self.current_bet - player.current_bet
+            
+            # If the player going all-in is the human player, we need to handle special cases
+            if player == self.human_player:
+                # Check if we should automatically move to showdown
+                should_go_to_showdown = False
+                
+                # Case 1: Human is the only non all-in player
+                active_not_all_in = [p for p in self.active_players if not p.is_all_in and not p.folded]
+                if len(active_not_all_in) <= 1:
+                    should_go_to_showdown = True
+                
+                # Case 2: Everyone has acted and bets are matched
+                if all(p.current_bet == self.current_bet or p.is_all_in or p.folded for p in self.players):
+                    should_go_to_showdown = True
+                
+                # If conditions are met, move directly to showdown
+                if should_go_to_showdown:
+                    logging.info("Human player all-in, automatically moving to showdown")
+                    while self.current_state != GameState.SHOWDOWN:
+                        self.next_round()
         
         # Update active players list
-        self.active_players = [p for p in self.players if p.is_active and not p.folded]
+        self.update_active_players()
         
-        # Move to next player
+        # Check if we should move to the next player
         if len(self.active_players) > 1:
-            self.move_to_next_player()
+            if player in self.active_players:
+                # If the player is still active, move to the next player
+                self.move_to_next_player()
+            else:
+                # If current player is no longer active, select the next active player
+                self.current_player = next((p for p in self.active_players if not p.is_all_in), self.active_players[0])
         
+            # Special case: If all remaining players except one are all-in,
+            # we need to complete all betting rounds at once
+            active_not_all_in = [p for p in self.active_players if not p.is_all_in and not p.folded]
+            if len(active_not_all_in) <= 1:
+                logging.info("Only one player not all-in, completing all betting rounds")
+                while self.current_state != GameState.SHOWDOWN:
+                    # Keep dealing community cards until showdown
+                    self.next_round()
+        
+        logging.info(f"Action processed. Current pot: {self.pot}, current bet: {self.current_bet}")
         return True
     
     def move_to_next_player(self):
@@ -205,42 +260,71 @@ class PokerGame:
         # 3. Or all active players are all-in
         
         if len(self.active_players) <= 1:
+            logging.info("Round complete: only one active player")
             return True
             
         active_not_all_in = [p for p in self.active_players if not p.is_all_in]
         if not active_not_all_in:
+            logging.info("Round complete: all active players are all-in")
             return True
             
-        # Check if all active players have matched the current bet
-        return all(p.current_bet == self.current_bet or p.is_all_in for p in self.active_players)
+        # Special case: Only one player left who isn't all-in
+        if len(active_not_all_in) == 1 and all(p.current_bet >= self.current_bet or p.is_all_in for p in self.active_players):
+            logging.info("Round complete: only one player not all-in, and all bets are matched")
+            return True
+            
+        # Normal case: Check if all active players have matched the current bet
+        all_matched = all(p.current_bet == self.current_bet or p.is_all_in for p in self.active_players)
+        if all_matched:
+            logging.info("Round complete: all active players have matched the current bet or are all-in")
+        return all_matched
     
     def next_round(self):
         """Move to the next betting round"""
+        logging.info(f"Moving from {self.current_state} to next round")
+        
         if self.current_state == GameState.PRE_FLOP:
             self.current_state = GameState.FLOP
-            self.deal_community_cards(3)  # Deal flop (3 cards)
+            # Deal the flop (3 cards)
+            self.deal_community_cards(3)
+            logging.info("Dealt flop: " + ", ".join(str(card) for card in self.community_cards[-3:]))
         
         elif self.current_state == GameState.FLOP:
             self.current_state = GameState.TURN
-            self.deal_community_cards(1)  # Deal turn (1 card)
+            # Deal the turn (1 card)
+            self.deal_community_cards(1)
+            logging.info(f"Dealt turn: {self.community_cards[-1]}")
         
         elif self.current_state == GameState.TURN:
             self.current_state = GameState.RIVER
-            self.deal_community_cards(1)  # Deal river (1 card)
+            # Deal the river (1 card)
+            self.deal_community_cards(1)
+            logging.info(f"Dealt river: {self.community_cards[-1]}")
         
         elif self.current_state == GameState.RIVER:
+            # After the river, move to showdown
             self.current_state = GameState.SHOWDOWN
             self.showdown()
+            logging.info("Moving to showdown")
         
-        # Reset betting
+        # Reset betting for the new round
         self.current_bet = 0
         for player in self.active_players:
             player.current_bet = 0
         
-        # Reset first player to act
+        # Reset first player to act - start with player after dealer
         if self.active_players:
-            self.current_player = self.active_players[0]
-        
+            # Find the first active player after the dealer
+            start_idx = (self.dealer_index + 1) % len(self.players)
+            for i in range(len(self.players)):
+                player_idx = (start_idx + i) % len(self.players)
+                if self.players[player_idx] in self.active_players:
+                    # Get the index in active_players list
+                    self.current_player_index = self.active_players.index(self.players[player_idx])
+                    self.current_player = self.active_players[self.current_player_index]
+                    break
+            
+        logging.info(f"Current state is now: {self.current_state}")
         return self.current_state
     
     def is_hand_complete(self):
@@ -248,53 +332,124 @@ class PokerGame:
         # Hand is complete when:
         # 1. Only one active player remains, or
         # 2. We've reached showdown
-        return len(self.active_players) <= 1 or self.current_state == GameState.SHOWDOWN
+        hand_complete = len(self.active_players) <= 1 or self.current_state == GameState.SHOWDOWN
+        logging.info(f"Hand complete check: {hand_complete}, active players: {len(self.active_players)}, state: {self.current_state}")
+        return hand_complete
     
     def showdown(self):
         """Handle the showdown phase"""
+        logging.info("Entering showdown phase")
         # All remaining players reveal their cards
         for player in self.active_players:
             player.reveal_cards()
+            logging.info(f"Player {player.name} reveals: {', '.join(str(card) for card in player.hand)}")
         
         # Hand is complete, will be evaluated by determine_winner
+        self.hand_complete = True
     
-    def determine_winner(self):
-        """Determine the winner of the hand"""
+    def determine_winners(self):
+        """
+        Returns a list of winner(s) with their hand rankings. If multiple players tie for the best hand,
+        they are all returned.
+        """
+        logging.info("Determining winners...")
+        
+        # If only one player remains, they are the winner (everyone else folded)
         if len(self.active_players) == 1:
             winner = self.active_players[0]
-            winner.collect_winnings(self.pot)
-            return winner
-            
-        # Compare hands at showdown
-        best_hand_value = -1
-        winners = []
+            winner.hand_name = "Default Win (others folded)"
+            self.winning_hand_name = "Default Win (others folded)"
+            logging.info(f"Single player remaining: {winner.name} wins by default")
+            return [winner]
         
-        for player in self.active_players:
+        # Gather non-folded players
+        active_players = [p for p in self.players if not p.folded and p.chips > 0]
+        if not active_players:
+            logging.info("No active players.")
+            return []
+
+        best_score = None
+        winners = []
+        winning_hand_name = ""
+
+        # Evaluate each player's 5-card hand using self.community_cards
+        for player in active_players:
+            # Make sure player's cards are revealed at showdown
+            player.reveal_cards()
+            
             # Combine hole cards with community cards
             all_cards = player.hand + self.community_cards
             
             # Evaluate the best 5-card hand
-            hand_value = evaluate_hand(all_cards)
+            try:
+                hand_value = evaluate_hand(all_cards)
+                hand_name = rank_to_string(hand_value)
+            except Exception as e:
+                logging.error(f"Error evaluating hand for {player.name}: {e}")
+                logging.error(f"Cards: {[str(c) for c in all_cards]}")
+                continue  # Skip this player if there's an error
+            
+            logging.info(f"Player {player.name} hand value: {hand_value}, hand name: {hand_name}")
+            
+            # Store the hand name with the player object
+            player.hand_name = hand_name
             
             # Compare with current best hand
-            if not winners or hand_value > best_hand_value:
-                best_hand_value = hand_value
+            if best_score is None or hand_value > best_score:
+                best_score = hand_value
                 winners = [player]
-            elif hand_value == best_hand_value:
+                winning_hand_name = hand_name
+            elif hand_value == best_score:
                 winners.append(player)
+
+        if winners:
+            winner_names = ", ".join([winner.name for winner in winners])
+            logging.info(f"Winners: {winner_names} with {winning_hand_name}")
+        else:
+            # Fallback: if we couldn't determine a winner but have active players, pick the first active player
+            if active_players:
+                winners = [active_players[0]]
+                winning_hand_name = "Default Win"
+                logging.info(f"No hand evaluation winners, defaulting to: {active_players[0].name}")
         
-        # Split pot among winners
-        split_amount = self.pot // len(winners)
-        remainder = self.pot % len(winners)
-        
-        for winner in winners:
-            winner.collect_winnings(split_amount)
-        
-        # Give remainder to first winner (closest to dealer)
-        if remainder > 0 and winners:
-            winners[0].collect_winnings(remainder)
-        
-        return winners[0] if winners else None
+        # Store the winning hand name in a class attribute
+        self.winning_hand_name = winning_hand_name
+        return winners
+
+    def finalize_hand(self):
+        """
+        Splits the pot among all winners returned by determine_winners().
+        """
+        logging.info("Finalizing hand...")
+        winners = self.determine_winners()
+        if not winners:
+            logging.warning("No winners to finalize - this should not happen!")
+            # No winners if all folded or something unusual - should not happen
+            return
+
+        # Split the pot evenly among winners
+        total_winners = len(winners)
+        if total_winners > 0 and self.pot > 0:
+            split_amount = self.pot // total_winners
+            logging.info(f"Splitting pot of {self.pot} among {total_winners} winners with {self.winning_hand_name}, each receiving {split_amount}.")
+            for winner in winners:
+                winner.collect_winnings(split_amount)
+                logging.info(f"Player {winner.name} collected {split_amount} with {winner.hand_name}.")
+                
+            # Handle any remainder
+            remainder = self.pot % total_winners
+            if remainder > 0:
+                # Give remainder to first winner (closest to dealer)
+                winners[0].collect_winnings(remainder)
+                logging.info(f"Player {winners[0].name} collected remainder of {remainder}.")
+                
+            # Reset the pot
+            self.pot = 0
+            logging.info("Pot reset to 0.")
+
+        # Mark hand complete
+        self.hand_complete = True
+        logging.info("Hand finalized.")
     
     def can_check(self):
         """Check if the current player can check"""
@@ -304,23 +459,66 @@ class PokerGame:
         """Check if the current player can call"""
         return self.current_bet > self.current_player.current_bet
     
-    def can_raise(self):
-        """Check if the current player can raise"""
-        return (self.current_player.chips > 0 and 
-                not self.current_player.is_all_in)
+    def update_active_players(self):
+        """Update the list of active players (not folded)"""
+        self.active_players = [p for p in self.players if not p.folded]
     
+    # Helper methods for action validation and state queries
+    def get_call_amount(self, player):
+        """Amount needed for player to call the current bet"""
+        return max(0, self.current_bet - player.current_bet)
+
+    def can_check(self, player):
+        """Check if player can check (no bet to call)"""
+        return player.current_bet >= self.current_bet
+
+    def can_call(self, player):
+        """Check if player can call"""
+        return (self.current_bet > player.current_bet) and (player.chips > 0)
+
+    def can_raise(self, player):
+        """Check if player can raise"""
+        # Player needs enough chips to make at least minimum raise
+        call_amount = self.get_call_amount(player)
+        return player.chips >= call_amount + self.minimum_raise
+
     def process_round(self):
         """Process the current round until completion"""
-        while not self.is_round_complete() and len(self.active_players) > 1:
+        logging.info(f"Processing round: {self.current_state}")
+        
+        # Don't process if the hand is already complete
+        if self.is_hand_complete():
+            logging.info("Hand is already complete, not processing round")
+            return
+        
+        # Process AI actions until the round is complete or human player's turn
+        round_in_progress = True
+        while round_in_progress and len(self.active_players) > 1:
+            # If it's human player's turn, let the UI handle it
+            if self.current_player == self.human_player:
+                logging.info("Human player's turn, stopping round processing")
+                break
+            
             # AI players take their actions
-            if self.current_player != self.human_player and hasattr(self.current_player, 'decide_action'):
+            if hasattr(self.current_player, 'decide_action'):
+                logging.info(f"AI player {self.current_player.name} is deciding action")
                 action, amount = self.current_player.decide_action(self.get_game_state())
                 self.process_action(self.current_player, action, amount)
+                
+                # Check if round is complete after this action
+                if self.is_round_complete():
+                    logging.info("Round is complete after AI action")
+                    round_in_progress = False
+            else:
+                # Skip players without decide_action method
+                self.move_to_next_player()
         
         # If round complete but hand not over, move to next round
         if self.is_round_complete() and not self.is_hand_complete():
+            logging.info("Round is complete, moving to next round")
             self.next_round()
             
-            # Continue processing if no human player or human player is inactive
-            if not self.human_player or not self.human_player.is_active:
+            # Process the new round if no human player is active
+            if not self.human_player or not self.human_player.is_active or self.human_player not in self.active_players:
+                logging.info("No active human player, continuing to process rounds")
                 self.process_round()

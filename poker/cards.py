@@ -88,8 +88,13 @@ def evaluate_hand(cards):
     1: One Pair
     0: High Card
     """
+    if not cards:
+        return (0, [0])  # Safety check - return high card with 0 value
+        
     if len(cards) < 5:
-        raise ValueError("Need at least 5 cards to evaluate a poker hand")
+        # Not enough cards, use what we have to evaluate high card
+        ranks = [card.rank_value for card in cards]
+        return (0, sorted(ranks, reverse=True)[:5])
     
     # Convert to simple representation for evaluation
     ranks = [card.rank_value for card in cards]
@@ -104,7 +109,11 @@ def evaluate_hand(cards):
             rank_counts[rank] = 1
     
     # Check for flush (all same suit)
-    is_flush = len(set(suits)) == 1
+    is_flush = False
+    for suit in set(suits):
+        if suits.count(suit) >= 5:
+            is_flush = True
+            break
     
     # Check for straight (5 consecutive ranks)
     sorted_ranks = sorted(set(ranks))
