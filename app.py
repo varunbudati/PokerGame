@@ -534,25 +534,35 @@ if selected == "Play":
                                 st.rerun()
                                 
                         if st.button("All In", key=f"all_in_{i}", type="primary", use_container_width=True):
-                            # Process all-in action
-                            result = game.process_action(player, GameAction.ALL_IN)
-                            if result:
-                                with st.spinner("Going all-in..."):
-                                    # When player goes all-in, we should automatically deal all remaining cards
-                                    # and move to showdown if the round is complete
-                                    if game.is_round_complete():
-                                        st.success("All-in! Dealing remaining cards...")
-                                        # Continue dealing cards until showdown
-                                        while game.current_state != GameState.SHOWDOWN and not game.is_hand_complete():
-                                            game.next_round()
+                            with st.spinner("Going all-in..."):
+                                # Process the all-in action
+                                result = game.process_action(player, GameAction.ALL_IN)
+                                
+                                if result:
+                                    st.success(f"{player.name} is ALL IN with ${player.current_bet}!")
                                     
-                                    # If hand is complete, determine winner
-                                    if game.is_hand_complete():
-                                        winners = game.determine_winners()
-                                        st.session_state.winner = winners[0] if len(winners) == 1 else "Tie"
-                                        if len(winners) > 1:
-                                            st.session_state.winners = winners
-                                        game.finalize_hand()
+                                    # When player goes all-in, automatically move to showdown if appropriate
+                                    # This happens when we have only one player left who isn't all-in
+                                    if hasattr(game, 'auto_showdown') and game.auto_showdown:
+                                        st.info("No more betting possible - dealing remaining community cards...")
+                                        
+                                        # Show the community cards after a brief delay
+                                        time.sleep(0.5)
+                                        
+                                        # Show cards and determine winner 
+                                        if game.is_hand_complete():
+                                            winners = game.determine_winners()
+                                            if winners:
+                                                if len(winners) == 1:
+                                                    st.session_state.winner = winners[0]
+                                                else:
+                                                    st.session_state.winner = "Tie" 
+                                                    st.session_state.winners = winners
+                                                
+                                                # Distribute the pot    
+                                                game.finalize_hand()
+                            
+                            # Always rerun to update the UI
                             st.rerun()
                     
                     with action_cols[2]:

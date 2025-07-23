@@ -187,25 +187,8 @@ class PokerGame:
                 # Since this is a raise, update minimum raise accordingly
                 self.minimum_raise = self.current_bet - player.current_bet
             
-            # If the player going all-in is the human player, we need to handle special cases
-            if player == self.human_player:
-                # Check if we should automatically move to showdown
-                should_go_to_showdown = False
-                
-                # Case 1: Human is the only non all-in player
-                active_not_all_in = [p for p in self.active_players if not p.is_all_in and not p.folded]
-                if len(active_not_all_in) <= 1:
-                    should_go_to_showdown = True
-                
-                # Case 2: Everyone has acted and bets are matched
-                if all(p.current_bet == self.current_bet or p.is_all_in or p.folded for p in self.players):
-                    should_go_to_showdown = True
-                
-                # If conditions are met, move directly to showdown
-                if should_go_to_showdown:
-                    logging.info("Human player all-in, automatically moving to showdown")
-                    while self.current_state != GameState.SHOWDOWN:
-                        self.next_round()
+            # Check special situations after an all-in
+            self._check_all_in_situations(player)
         
         # Update active players list
         self.update_active_players()
@@ -231,6 +214,28 @@ class PokerGame:
         logging.info(f"Action processed. Current pot: {self.pot}, current bet: {self.current_bet}")
         return True
     
+    def _check_all_in_situations(self, all_in_player):
+        """Check if the all-in action should trigger automatic progression"""
+        # If only one player is not all-in or folded, complete all betting rounds
+        active_not_all_in = [p for p in self.active_players if not p.is_all_in and not p.folded]
+        
+        if len(active_not_all_in) <= 1:
+            logging.info("Only one player not all-in, automatically dealing remaining cards")
+            # If we need to move through remaining betting rounds
+            if self.current_state != GameState.SHOWDOWN:
+                # Create a copy of the active players for later restoration
+                original_active_players = list(self.active_players)
+                
+                # Deal any remaining community cards
+                while self.current_state != GameState.SHOWDOWN:
+                    self.next_round()
+                
+                # Restore the active players 
+                self.active_players = original_active_players
+                
+                # Mark this as an automatic showdown
+                self.auto_showdown = True
+
     def move_to_next_player(self):
         """Move to the next active player"""
         if not self.active_players:
@@ -419,38 +424,124 @@ class PokerGame:
     def finalize_hand(self):
         """
         Splits the pot among all winners returned by determine_winners().
+        Enhanced to handle side pots and all-in situations.
         """
         logging.info("Finalizing hand...")
         winners = self.determine_winners()
         if not winners:
             logging.warning("No winners to finalize - this should not happen!")
-            # No winners if all folded or something unusual - should not happen
             return
 
-        # Split the pot evenly among winners
-        total_winners = len(winners)
-        if total_winners > 0 and self.pot > 0:
-            split_amount = self.pot // total_winners
-            logging.info(f"Splitting pot of {self.pot} among {total_winners} winners with {self.winning_hand_name}, each receiving {split_amount}.")
+        # Special handling for all-in situations with side pots
+        side_pots = self._calculate_side_pots()
+        
+        if side_pots:
+            logging.info(f"Calculating split with side pots: {side_pots}")
+            self._distribute_side_pots(side_pots, winners)
+        else:
+            # Regular pot splitting for non-all-in situations
+            split_amount = self.pot // len(winners)
+            logging.info(f"Splitting pot of {self.pot} among {len(winners)} winners, each receiving {split_amount}")
+            
             for winner in winners:
                 winner.collect_winnings(split_amount)
-                logging.info(f"Player {winner.name} collected {split_amount} with {winner.hand_name}.")
-                
+                logging.info(f"Player {winner.name} collected {split_amount} with {winner.hand_name}")
+            
             # Handle any remainder
-            remainder = self.pot % total_winners
+            remainder = self.pot % len(winners)
             if remainder > 0:
-                # Give remainder to first winner (closest to dealer)
                 winners[0].collect_winnings(remainder)
-                logging.info(f"Player {winners[0].name} collected remainder of {remainder}.")
-                
-            # Reset the pot
-            self.pot = 0
-            logging.info("Pot reset to 0.")
-
-        # Mark hand complete
+                logging.info(f"Player {winners[0].name} collected remainder of {remainder}")
+        
+        # Reset the pot
+        self.pot = 0
         self.hand_complete = True
         logging.info("Hand finalized.")
-    
+
+    def _calculate_side_pots(self):
+        """
+        Calculate side pots for all-in situations.
+        Returns a list of (pot_amount, eligible_players) tuples.
+        """
+        if not any(p.is_all_in for p in self.active_players):
+            return []  # No all-in players, no side pots
+            
+        # Sort players by their stake amount
+        players_by_stake = sorted(
+            [p for p in self.active_players if not p.folded],
+            key=lambda player: player.stake
+        )
+        
+        if not players_by_stake:
+            return []
+            
+        side_pots = []
+        prev_stake = 0
+        
+        # Calculate each side pot
+        for i, current_player in enumerate(players_by_stake):
+            if current_player.is_all_in:
+                current_stake = current_player.stake
+                # Calculate pot size for this stake level
+                pot_size = 0
+                for player in self.active_players:
+                    contribution = min(current_stake, player.stake) - prev_stake
+                    if contribution > 0:
+                        pot_size += contribution
+                
+                # Eligible players are those who contributed to this pot
+                eligible_players = [p for p in self.active_players 
+                                   if not p.folded and p.stake >= current_stake]
+                
+                side_pots.append((pot_size, eligible_players))
+                prev_stake = current_stake
+        
+        # If there's a main pot left (players who weren't all in)
+        if prev_stake < max(p.stake for p in self.active_players if not p.folded):
+            pot_size = 0
+            for player in self.active_players:
+                contribution = max(0, player.stake - prev_stake)
+                pot_size += contribution
+                
+            eligible_players = [p for p in self.active_players 
+                               if not p.folded and p.stake > prev_stake]
+            
+            side_pots.append((pot_size, eligible_players))
+        
+        return side_pots
+
+    def _distribute_side_pots(self, side_pots, all_winners):
+        """
+        Distribute side pots to eligible winners.
+        """
+        total_distributed = 0
+        
+        for pot_amount, eligible_players in side_pots:
+            # Find winners for this pot
+            pot_winners = [w for w in all_winners if w in eligible_players]
+            
+            if pot_winners:
+                split_amount = pot_amount // len(pot_winners)
+                remainder = pot_amount % len(pot_winners)
+                
+                for winner in pot_winners:
+                    winner.collect_winnings(split_amount)
+                    logging.info(f"Player {winner.name} collected {split_amount} from side pot with {winner.hand_name}")
+                    total_distributed += split_amount
+                
+                # Give remainder to first winner
+                if remainder > 0:
+                    pot_winners[0].collect_winnings(remainder)
+                    logging.info(f"Player {pot_winners[0].name} collected remainder of {remainder}")
+                    total_distributed += remainder
+            else:
+                # Edge case: no eligible winners for this pot
+                # This could happen if all eligible players folded
+                logging.warning(f"No eligible winners for side pot of {pot_amount}")
+        
+        if total_distributed != self.pot:
+            logging.warning(f"Distribution mismatch: {total_distributed} distributed from pot of {self.pot}")
+
     def can_check(self):
         """Check if the current player can check"""
         return self.current_player.current_bet >= self.current_bet

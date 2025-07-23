@@ -13,6 +13,16 @@ class Player:
         self.revealed = False
         self.hand_name = ""  # Store the name of the player's hand
     
+    @property
+    def stake(self):
+        """Compatibility property - returns current_bet"""
+        return self.current_bet
+    
+    @stake.setter
+    def stake(self, value):
+        """Compatibility setter - sets current_bet"""
+        self.current_bet = value
+    
     def reset_for_hand(self):
         """Reset player state for a new hand"""
         self.hand = []
